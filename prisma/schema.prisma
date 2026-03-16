@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Administration & Security ────────────────────────────────────
+
+model Institute {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  users            User[]
+  academicTerms    AcademicTerm[]
+  courses          Course[]
+  students         Student[]
+  fees             Fee[]
+  financialAccounts FinancialAccount[]
+  expenseCategories ExpenseCategory[]
+  expenses         Expense[]
+  accountTransfers AccountTransfer[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions String[]
+
+  users User[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  isSystemAdmin Boolean  @default(false)
+  isApproved   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  instituteId  String?
+  institute    Institute? @relation(fields: [instituteId], references: [id])
+
+  roleId       String?
+  role         Role?      @relation(fields: [roleId], references: [id])
+
+  auditLogs    AuditLog[]
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  targetTable String
+  targetId    String
+  timestamp   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+// ─── Academics ────────────────────────────────────────────────────
+
+model AcademicTerm {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  enrollments  Enrollment[]
+  studentFees  StudentFee[]
+}
+
+model Course {
+  id   String @id @default(cuid())
+  name String
+  code String
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  enrollments Enrollment[]
+
+  @@unique([instituteId, code])
+}
+
+model Student {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  status    String  @default("active")
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  enrollments Enrollment[]
+  studentFees StudentFee[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  termId String
+  term   AcademicTerm @relation(fields: [termId], references: [id])
+
+  @@unique([studentId, courseId, termId])
+}
+
+// ─── Fee Engine ───────────────────────────────────────────────────
+
+model Fee {
+  id            String  @id @default(cuid())
+  name          String
+  defaultAmount Decimal @db.Decimal(12, 2)
+  type          String
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  studentFees StudentFee[]
+}
+
+model StudentFee {
+  id        String   @id @default(cuid())
+  amountDue Decimal  @db.Decimal(12, 2)
+  dueDate   DateTime
+  status    FeeStatus @default(PENDING)
+  createdAt DateTime  @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  feeId String
+  fee   Fee @relation(fields: [feeId], references: [id])
+
+  termId String?
+  term   AcademicTerm? @relation(fields: [termId], references: [id])
+
+  payments PaymentTransaction[]
+}
+
+enum FeeStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+// ─── Accounting & Cash Flow ───────────────────────────────────────
+
+model FinancialAccount {
+  id        String  @id @default(cuid())
+  name      String
+  type      String  // Bank | Cash
+  balance   Decimal @default(0) @db.Decimal(12, 2)
+  isDefault Boolean @default(false)
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  payments          PaymentTransaction[]
+  expenses          Expense[]
+  transfersFrom     AccountTransfer[]    @relation("FromAccount")
+  transfersTo       AccountTransfer[]    @relation("ToAccount")
+}
+
+model PaymentTransaction {
+  id         String   @id @default(cuid())
+  amountPaid Decimal  @db.Decimal(12, 2)
+  date       DateTime @default(now())
+  method     String
+
+  studentFeeId String
+  studentFee   StudentFee @relation(fields: [studentFeeId], references: [id])
+
+  financialAccountId String
+  financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id])
+}
+
+model ExpenseCategory {
+  id   String @id @default(cuid())
+  name String
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  expenses Expense[]
+}
+
+model Expense {
+  id     String   @id @default(cuid())
+  title  String
+  amount Decimal  @db.Decimal(12, 2)
+  date   DateTime @default(now())
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  financialAccountId String
+  financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id])
+
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+}
+
+model AccountTransfer {
+  id     String   @id @default(cuid())
+  amount Decimal  @db.Decimal(12, 2)
+  date   DateTime @default(now())
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  fromAccountId String
+  fromAccount   FinancialAccount @relation("FromAccount", fields: [fromAccountId], references: [id])
+
+  toAccountId String
+  toAccount   FinancialAccount @relation("ToAccount", fields: [toAccountId], references: [id])
+}
+
