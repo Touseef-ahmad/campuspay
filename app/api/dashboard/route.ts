@@ -4,22 +4,31 @@ import { getAuthPayload } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const instituteFilter = auth.instituteId
+    ? { instituteId: auth.instituteId }
+    : {};
+
+  const studentInstituteFilter = auth.instituteId
+    ? { student: { instituteId: auth.instituteId } }
+    : {};
 
   const [pendingFees, accounts, recentTransactions] = await Promise.all([
     prisma.studentFee.aggregate({
       where: {
-        student: { instituteId: auth.instituteId },
+        ...studentInstituteFilter,
         status: { in: ["PENDING", "PARTIAL"] },
       },
       _sum: { amountDue: true },
       _count: true,
     }),
     prisma.financialAccount.findMany({
-      where: { instituteId: auth.instituteId },
+      where: instituteFilter,
     }),
     prisma.paymentTransaction.aggregate({
-      where: { studentFee: { student: { instituteId: auth.instituteId } } },
+      where: { studentFee: studentInstituteFilter },
       _sum: { amountPaid: true },
     }),
   ]);

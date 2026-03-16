@@ -11,7 +11,6 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,15 +29,14 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]">
+    <aside className="flex h-full w-[94px] flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
+      <div className="flex h-16 items-center justify-center border-b border-white/10">
         <GraduationCap className="h-7 w-7 text-white" />
-        <span className="font-semibold text-white">SchoolFMS</span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-2 py-4">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             href === "/dashboard"
@@ -49,13 +47,13 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex flex-col items-center gap-1 rounded-md px-1 py-2.5 text-[10px] font-medium transition-colors",
                 active
                   ? "bg-white/20 text-white"
                   : "text-white/70 hover:bg-white/10 hover:text-white",
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-5 w-5" />
               {label}
             </Link>
           );
@@ -63,15 +61,14 @@ export function Sidebar() {
       </nav>
 
       {/* Logout */}
-      <div className="border-t border-white/10 p-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-white/70 hover:bg-white/10 hover:text-white"
+      <div className="border-t border-white/10 p-2">
+        <button
+          className="flex w-full flex-col items-center gap-1 rounded-md px-1 py-2.5 text-[10px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           onClick={handleLogout}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-5 w-5" />
           Sign Out
-        </Button>
+        </button>
       </div>
     </aside>
   );

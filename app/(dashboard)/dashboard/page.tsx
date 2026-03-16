@@ -125,7 +125,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              {kpis?.accounts.map((a) => (
+              {(kpis?.accounts ?? []).map((a) => (
                 <div key={a.id} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{a.name}</span>
                   <span className="font-medium">{fmt(Number(a.balance))}</span>

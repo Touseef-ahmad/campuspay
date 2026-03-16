@@ -4,7 +4,8 @@ import { getAuthPayload } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
@@ -15,10 +16,20 @@ export async function GET(req: NextRequest) {
     ...(to ? { lte: new Date(to) } : {}),
   };
 
+  const studentInstituteFilter = auth.instituteId
+    ? { student: { instituteId: auth.instituteId } }
+    : {};
+
+  const instituteFilter = auth.instituteId
+    ? { instituteId: auth.instituteId }
+    : {};
+
   const [payments, expenses] = await Promise.all([
     prisma.paymentTransaction.findMany({
       where: {
-        studentFee: { student: { instituteId: auth.instituteId } },
+        ...(auth.instituteId
+          ? { studentFee: { student: { instituteId: auth.instituteId } } }
+          : {}),
         ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
       },
       include: {
@@ -29,7 +40,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.expense.findMany({
       where: {
-        instituteId: auth.instituteId,
+        ...instituteFilter,
         ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
       },
       include: { category: true, financialAccount: true },
