@@ -73,11 +73,7 @@ export default function OnboardingPage() {
         return;
       }
 
-      if (mode === "institute") {
-        router.push("/");
-      } else {
-        router.push("/pending-approval");
-      }
+      router.push("/pending-approval");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

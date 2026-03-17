@@ -9,6 +9,7 @@ import {
   Wallet,
   LogOut,
   GraduationCap,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/students", label: "Students", icon: Users },
   { href: "/courses", label: "Courses", icon: BookOpen },
   { href: "/accounts", label: "Accounts", icon: Wallet },
+  { href: "/users", label: "Users", icon: ShieldCheck },
 ];
 
 export function Sidebar() {
