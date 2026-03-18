@@ -31,10 +31,10 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-[94px] flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]">
+    <aside className="flex h-full w-27.5 flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]">
       {/* Logo */}
       <div className="flex h-16 items-center justify-center border-b border-white/10">
-        <GraduationCap className="h-7 w-7 text-white" />
+        <GraduationCap className="h-6 w-6 text-white" />
       </div>
 
       {/* Nav */}
@@ -49,14 +49,39 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-md px-1 py-2.5 text-[10px] font-medium transition-colors",
-                active
-                  ? "bg-white/20 text-white"
-                  : "text-white/70 hover:bg-white/10 hover:text-white",
+                "flex flex-col items-center gap-1.5 rounded-md px-1 py-2.5 transition-colors",
+                active ? "text-white" : "text-white/70 hover:text-white",
               )}
             >
-              <Icon className="h-5 w-5" />
-              {label}
+              {/* Icon container: white 34×34 bg when active */}
+              <span
+                className={cn(
+                  "flex h-8.5 w-8.5 items-center justify-center rounded-[5px] transition-colors",
+                  active ? "bg-white" : "hover:bg-white/10",
+                )}
+              >
+                <Icon
+                  className="h-6 w-6"
+                  style={
+                    active
+                      ? {
+                          color: "hsl(var(--primary))",
+                          fill: "hsl(var(--primary))",
+                        }
+                      : undefined
+                  }
+                />
+              </span>
+              <span
+                className="text-center leading-tight"
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 500,
+                  fontSize: "14px",
+                }}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}
@@ -65,11 +90,22 @@ export function Sidebar() {
       {/* Logout */}
       <div className="border-t border-white/10 p-2">
         <button
-          className="flex w-full flex-col items-center gap-1 rounded-md px-1 py-2.5 text-[10px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex w-full flex-col items-center gap-1.5 rounded-md px-1 py-2.5 text-white/70 transition-colors hover:text-white"
           onClick={handleLogout}
         >
-          <LogOut className="h-5 w-5" />
-          Sign Out
+          <span className="flex h-8.5 w-8.5 items-center justify-center rounded-[5px] hover:bg-white/10">
+            <LogOut className="h-6 w-6" />
+          </span>
+          <span
+            className="text-center leading-tight"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 500,
+              fontSize: "14px",
+            }}
+          >
+            Sign Out
+          </span>
         </button>
       </div>
     </aside>
