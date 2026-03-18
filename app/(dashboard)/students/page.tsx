@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -55,8 +61,6 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // TODO: Fetch KPI stats from a dedicated /api/students/stats endpoint
   const stats = { total: 48, active: 48, withDueFees: 48 };
@@ -94,19 +98,6 @@ export default function StudentsPage() {
     const t = setTimeout(() => load(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
-  // Close action dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
-      }
-    }
-    if (openMenuId) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [openMenuId]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -443,63 +434,43 @@ export default function StudentsPage() {
                     className="text-right"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div
-                      className="relative inline-flex justify-end"
-                      ref={openMenuId === s.id ? menuRef : undefined}
-                    >
-                      <button
-                        className="rounded p-1 hover:bg-gray-100"
-                        onClick={() =>
-                          setOpenMenuId(openMenuId === s.id ? null : s.id)
-                        }
-                      >
-                        <MoreVertical className="h-4 w-4 text-gray-500" />
-                      </button>
-                      {openMenuId === s.id && (
-                        <div className="absolute right-0 top-8 z-10 w-40 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
-                          <button
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              router.push(`/students/${s.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 text-gray-400" />
-                            View
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              router.push(`/students/${s.id}/edit`);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 text-gray-400" />
-                            Edit
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              // TODO: Open edit fees/enrollment dialog for this student
-                              setOpenMenuId(null);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 text-gray-400" />
-                            Edit
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              // TODO: Open add payment dialog for this student
-                              setOpenMenuId(null);
-                            }}
-                          >
-                            <DollarSign className="h-4 w-4 text-gray-400" />
-                            Add Payment
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="rounded p-1 hover:bg-gray-100">
+                          <MoreVertical className="h-4 w-4 text-gray-500" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/students/${s.id}`)}
+                        >
+                          <Eye className="h-4 w-4 text-gray-400" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/students/${s.id}/edit`)}
+                        >
+                          <Pencil className="h-4 w-4 text-gray-400" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            // TODO: Open edit fees/enrollment dialog for this student
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 text-gray-400" />
+                          Edit Fees
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            // TODO: Open add payment dialog for this student
+                          }}
+                        >
+                          <DollarSign className="h-4 w-4 text-gray-400" />
+                          Add Payment
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
