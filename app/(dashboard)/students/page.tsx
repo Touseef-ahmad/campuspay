@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,8 +33,10 @@ import { UserPlus, Search } from "lucide-react";
 
 interface Student {
   id: string;
+  studentId: string | null;
   firstName: string;
   lastName: string;
+  department: string | null;
   status: string;
 }
 
@@ -37,7 +46,13 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "" });
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    department: "",
+    enrollmentDate: "",
+    academicYear: "",
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -74,7 +89,13 @@ export default function StudentsPage() {
         return;
       }
       setOpen(false);
-      setForm({ firstName: "", lastName: "" });
+      setForm({
+        firstName: "",
+        lastName: "",
+        department: "",
+        enrollmentDate: "",
+        academicYear: "",
+      });
       load(search);
     } finally {
       setSaving(false);
@@ -117,6 +138,55 @@ export default function StudentsPage() {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select
+                  value={form.department}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, department: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      "Computer Science",
+                      "Engineering",
+                      "Business",
+                      "Arts",
+                      "Science",
+                      "Mathematics",
+                      "Law",
+                      "Medicine",
+                    ].map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Enrollment Date</Label>
+                <Input
+                  type="date"
+                  value={form.enrollmentDate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, enrollmentDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Academic Year</Label>
+                <Input
+                  placeholder="e.g. 2024-2025"
+                  value={form.academicYear}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, academicYear: e.target.value }))
+                  }
+                />
+              </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex justify-end gap-2">
                 <Button
@@ -151,7 +221,9 @@ export default function StudentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Student ID</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -160,7 +232,7 @@ export default function StudentsPage() {
               {loading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={5}
                     className="text-center text-muted-foreground py-8"
                   >
                     Loading…
@@ -169,7 +241,7 @@ export default function StudentsPage() {
               ) : students.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={5}
                     className="text-center text-muted-foreground py-8"
                   >
                     No students found
@@ -182,9 +254,13 @@ export default function StudentsPage() {
                     className="cursor-pointer"
                     onClick={() => router.push(`/students/${s.id}`)}
                   >
+                    <TableCell className="font-mono text-xs">
+                      {s.studentId ?? "—"}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {s.firstName} {s.lastName}
                     </TableCell>
+                    <TableCell>{s.department ?? "—"}</TableCell>
                     <TableCell>
                       <Badge
                         variant={

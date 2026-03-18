@@ -76,10 +76,22 @@ model AcademicTerm {
   studentFees  StudentFee[]
 }
 
+enum CourseStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
 model Course {
-  id   String @id @default(cuid())
-  name String
-  code String
+  id          String       @id @default(cuid())
+  code        String
+  title       String
+  department  String?
+  credits     Int?
+  maxStudents Int?
+  semester    String?
+  duration    String?
+  status      CourseStatus @default(ACTIVE)
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])
@@ -90,10 +102,14 @@ model Course {
 }
 
 model Student {
-  id        String  @id @default(cuid())
-  firstName String
-  lastName  String
-  status    String  @default("active")
+  id             String    @id @default(cuid())
+  studentId      String?   @unique
+  firstName      String
+  lastName       String
+  department     String?
+  enrollmentDate DateTime?
+  academicYear   String?
+  status         String    @default("active")
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])

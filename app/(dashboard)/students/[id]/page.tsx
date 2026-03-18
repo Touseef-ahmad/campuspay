@@ -30,17 +30,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, PlusCircle, CreditCard } from "lucide-react";
+import { ArrowLeft, PlusCircle, CreditCard, Pencil } from "lucide-react";
 import Link from "next/link";
 
 interface StudentDetail {
   id: string;
+  studentId: string | null;
   firstName: string;
   lastName: string;
+  department: string | null;
+  enrollmentDate: string | null;
+  academicYear: string | null;
   status: string;
   enrollments: {
     id: string;
-    course: { name: string; code: string };
+    course: { title: string; code: string };
     term: { name: string };
   }[];
   studentFees: {
@@ -99,6 +103,17 @@ export default function StudentDetailPage() {
   });
   const [paySaving, setPaySaving] = useState(false);
 
+  // Edit student dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    department: "",
+    enrollmentDate: "",
+    academicYear: "",
+  });
+  const [editSaving, setEditSaving] = useState(false);
+
   async function load() {
     const [sRes, fRes, aRes] = await Promise.all([
       fetch(`/api/students/${id}`),
@@ -154,6 +169,33 @@ export default function StudentDetailPage() {
     setPaySaving(false);
   }
 
+  function openEditDialog() {
+    if (!student) return;
+    setEditForm({
+      firstName: student.firstName,
+      lastName: student.lastName,
+      department: student.department ?? "",
+      enrollmentDate: student.enrollmentDate
+        ? new Date(student.enrollmentDate).toISOString().split("T")[0]
+        : "",
+      academicYear: student.academicYear ?? "",
+    });
+    setEditOpen(true);
+  }
+
+  async function handleEditStudent(e: React.FormEvent) {
+    e.preventDefault();
+    setEditSaving(true);
+    await fetch(`/api/students/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    setEditOpen(false);
+    await load();
+    setEditSaving(false);
+  }
+
   if (loading) return <div className="text-muted-foreground">Loading…</div>;
   if (!student)
     return <div className="text-destructive">Student not found</div>;
@@ -178,6 +220,165 @@ export default function StudentDetailPage() {
           </Badge>
         </div>
       </div>
+
+      {/* Student Information */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Student Information</CardTitle>
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={openEditDialog}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Student Information</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleEditStudent} className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Full Name *</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="First name"
+                      value={editForm.firstName}
+                      onChange={(e) =>
+                        setEditForm((p) => ({
+                          ...p,
+                          firstName: e.target.value,
+                        }))
+                      }
+                      required
+                    />
+                    <Input
+                      placeholder="Last name"
+                      value={editForm.lastName}
+                      onChange={(e) =>
+                        setEditForm((p) => ({ ...p, lastName: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Student ID</Label>
+                  <Input value={student.studentId ?? ""} disabled />
+                  <p className="text-xs text-muted-foreground">
+                    Auto-generated upon save
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Department *</Label>
+                  <Select
+                    value={editForm.department}
+                    onValueChange={(v) =>
+                      setEditForm((p) => ({ ...p, department: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        "Computer Science",
+                        "Engineering",
+                        "Business",
+                        "Arts",
+                        "Science",
+                        "Mathematics",
+                        "Law",
+                        "Medicine",
+                      ].map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Enrollment Date *</Label>
+                  <Input
+                    type="date"
+                    value={editForm.enrollmentDate}
+                    onChange={(e) =>
+                      setEditForm((p) => ({
+                        ...p,
+                        enrollmentDate: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Academic Year</Label>
+                  <Input
+                    placeholder="e.g. 2024-2025"
+                    value={editForm.academicYear}
+                    onChange={(e) =>
+                      setEditForm((p) => ({
+                        ...p,
+                        academicYear: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={editSaving}>
+                    {editSaving ? "Saving…" : "Save Changes"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Full Name</p>
+              <p className="font-medium">
+                {student.firstName} {student.lastName}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Student ID</p>
+              <p className="font-mono text-sm">{student.studentId ?? "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Department</p>
+              <p className="font-medium">{student.department ?? "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Enrollment Date</p>
+              <p className="font-medium">
+                {student.enrollmentDate
+                  ? new Date(student.enrollmentDate).toLocaleDateString()
+                  : "—"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Academic Year</p>
+              <p className="font-medium">{student.academicYear ?? "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Status</p>
+              <Badge
+                variant={student.status === "active" ? "success" : "secondary"}
+              >
+                {student.status}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="financials">
         <TabsList>
@@ -207,7 +408,7 @@ export default function StudentDetailPage() {
                   <TableBody>
                     {student.enrollments.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell>{e.course.name}</TableCell>
+                        <TableCell>{e.course.title}</TableCell>
                         <TableCell className="font-mono text-xs">
                           {e.course.code}
                         </TableCell>
