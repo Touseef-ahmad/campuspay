@@ -470,8 +470,8 @@ export default function StudentsPage() {
                           <button
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                             onClick={() => {
-                              // TODO: Navigate to edit student page or open an edit dialog
                               setOpenMenuId(null);
+                              router.push(`/students/${s.id}/edit`);
                             }}
                           >
                             <Pencil className="h-4 w-4 text-gray-400" />
