@@ -149,11 +149,12 @@ model Fee {
 }
 
 model StudentFee {
-  id        String   @id @default(cuid())
-  amountDue Decimal  @db.Decimal(12, 2)
-  dueDate   DateTime
-  status    FeeStatus @default(PENDING)
-  createdAt DateTime  @default(now())
+  id         String    @id @default(cuid())
+  amountDue  Decimal   @db.Decimal(12, 2)
+  amountPaid Decimal   @default(0) @db.Decimal(12, 2)
+  dueDate    DateTime
+  status     FeeStatus @default(PENDING)
+  createdAt  DateTime  @default(now())
 
   studentId String
   student   Student @relation(fields: [studentId], references: [id])

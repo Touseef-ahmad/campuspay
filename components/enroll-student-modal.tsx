@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,13 @@ interface FeeItem {
   name: string;
   amount: string;
   type: string;
+}
+
+interface Course {
+  id: string;
+  code: string;
+  title: string;
+  department: string | null;
 }
 
 interface EnrollStudentModalProps {
@@ -59,6 +66,22 @@ export function EnrollStudentModal({
   const [fees, setFees] = useState<FeeItem[]>(DEFAULT_FEES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+
+  // Fetch courses when modal opens
+  useEffect(() => {
+    if (open) {
+      setLoadingCourses(true);
+      fetch("/api/courses")
+        .then((res) => res.json())
+        .then((data) => {
+          setCourses(Array.isArray(data) ? data : []);
+        })
+        .catch(() => setCourses([]))
+        .finally(() => setLoadingCourses(false));
+    }
+  }, [open]);
 
   // Calculate total
   const totalAmount = useMemo(() => {
@@ -115,6 +138,12 @@ export function EnrollStudentModal({
     e.preventDefault();
     setError("");
 
+    // Validate program selection
+    if (!selectedProgram) {
+      setError("Please select a program");
+      return;
+    }
+
     // Validate at least one fee with valid amount
     const validFees = fees.filter(
       (f) => f.name.trim() && parseFloat(f.amount) > 0,
@@ -127,6 +156,7 @@ export function EnrollStudentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          courseId: selectedProgram,
           fees: validFees.map((f) => ({
             name: f.name,
             amount: parseFloat(f.amount),
@@ -298,30 +328,34 @@ export function EnrollStudentModal({
         {step === 2 && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Select Program</Label>
+              <Label>
+                Select Program <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={selectedProgram}
                 onValueChange={setSelectedProgram}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a program" />
+                  <SelectValue
+                    placeholder={
+                      loadingCourses
+                        ? "Loading programs..."
+                        : "Select a program"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cs-bachelor">
-                    Bachelor of Computer Science
-                  </SelectItem>
-                  <SelectItem value="cs-master">
-                    Master of Computer Science
-                  </SelectItem>
-                  <SelectItem value="business-bachelor">
-                    Bachelor of Business Administration
-                  </SelectItem>
-                  <SelectItem value="engineering-bachelor">
-                    Bachelor of Engineering
-                  </SelectItem>
-                  <SelectItem value="arts-bachelor">
-                    Bachelor of Arts
-                  </SelectItem>
+                  {courses.length === 0 ? (
+                    <SelectItem value="_empty" disabled>
+                      No programs available
+                    </SelectItem>
+                  ) : (
+                    courses.map((course) => (
+                      <SelectItem key={course.id} value={course.id}>
+                        {course.title} ({course.code})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

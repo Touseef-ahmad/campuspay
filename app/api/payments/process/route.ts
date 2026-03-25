@@ -117,10 +117,13 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Update student fee status
+        // Update student fee status and amountPaid
         await tx.studentFee.update({
           where: { id: paymentItem.studentFeeId },
-          data: { status: newStatus },
+          data: {
+            status: newStatus,
+            amountPaid: { increment: paymentItem.amount },
+          },
         });
 
         createdPayments.push(payment);

@@ -17,6 +17,7 @@ const schema = z.object({
   academicYear: z.string().optional(),
   status: z.string().optional().default("active"),
   fees: z.array(feeSchema).optional(),
+  courseId: z.string().min(1, "Program is required"),
 });
 
 export async function GET(req: NextRequest) {
@@ -53,24 +54,78 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { enrollmentDate, fees, ...rest } = schema.parse(body);
+    const { enrollmentDate, fees, courseId, ...rest } = schema.parse(body);
+
+    // Verify course exists and belongs to institute
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, instituteId },
+    });
+    if (!course) {
+      return NextResponse.json(
+        { error: "Selected program not found" },
+        { status: 400 },
+      );
+    }
 
     // Auto-generate studentId: STU-YYYY-NNN
+    // Find the highest existing number for this year to avoid duplicates
     const year = new Date().getFullYear();
-    const count = await prisma.student.count({
-      where: { instituteId },
-    });
-    const studentId = `STU-${year}-${String(count + 1).padStart(3, "0")}`;
+    const prefix = `STU-${year}-`;
 
-    // Create student with fees in a transaction
+    const lastStudent = await prisma.student.findFirst({
+      where: {
+        instituteId,
+        studentId: { startsWith: prefix },
+      },
+      orderBy: { studentId: "desc" },
+      select: { studentId: true },
+    });
+
+    let nextNumber = 1;
+    if (lastStudent?.studentId) {
+      const match = lastStudent.studentId.match(/STU-\d{4}-(\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    }
+    const studentId = `${prefix}${String(nextNumber).padStart(3, "0")}`;
+
+    // Find or create a default academic term for enrollment
+    let term = await prisma.academicTerm.findFirst({
+      where: { instituteId },
+      orderBy: { startDate: "desc" },
+    });
+    if (!term) {
+      // Create a default term if none exists
+      term = await prisma.academicTerm.create({
+        data: {
+          name: `${year} Academic Year`,
+          startDate: new Date(`${year}-01-01`),
+          endDate: new Date(`${year}-12-31`),
+          instituteId,
+        },
+      });
+    }
+
+    // Create student with fees and enrollment in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create the student
+      // Create the student with department from course
       const student = await tx.student.create({
         data: {
           ...rest,
           studentId,
+          department: course.department || rest.department,
           enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : undefined,
           instituteId,
+        },
+      });
+
+      // Create enrollment linking student to course/program
+      await tx.enrollment.create({
+        data: {
+          studentId: student.id,
+          courseId: course.id,
+          termId: term.id,
         },
       });
 

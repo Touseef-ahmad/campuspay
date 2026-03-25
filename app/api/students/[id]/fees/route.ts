@@ -27,22 +27,18 @@ export async function GET(
   if (!student)
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
 
-  // Fetch student fees with payments aggregated
+  // Fetch student fees with fee details
   const studentFees = await prisma.studentFee.findMany({
     where: { studentId },
     include: {
       fee: true,
-      payments: true,
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // Calculate amountPaid and balance for each fee
+  // Calculate balance for each fee using stored amountPaid
   const feesWithBalances = studentFees.map((sf) => {
-    const amountPaid = sf.payments.reduce(
-      (sum, p) => sum + Number(p.amountPaid),
-      0,
-    );
+    const amountPaid = Number(sf.amountPaid);
     const balance = Number(sf.amountDue) - amountPaid;
     return {
       id: sf.id,

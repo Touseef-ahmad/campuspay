@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
   });
 
   // Total fees due (sum of all unpaid amounts, excluding archived students)
+  // Calculate actual balance: amountDue - amountPaid
   const feesAggregation = await prisma.studentFee.aggregate({
     where: {
       student: { instituteId, status: { not: "archived" } },
@@ -40,8 +41,15 @@ export async function GET(req: NextRequest) {
     },
     _sum: {
       amountDue: true,
+      amountPaid: true,
     },
   });
+
+  const totalFeesDue = Number(feesAggregation._sum?.amountDue || 0);
+  const totalPaidOnDues = Number(
+    (feesAggregation._sum as { amountPaid?: unknown })?.amountPaid || 0,
+  );
+  const actualFeesDue = totalFeesDue - totalPaidOnDues;
 
   // Total payments received
   const paymentsAggregation = await prisma.paymentTransaction.aggregate({
@@ -59,7 +67,7 @@ export async function GET(req: NextRequest) {
     total,
     active,
     withDueFees: studentsWithDueFees,
-    totalFeesDue: Number(feesAggregation._sum.amountDue || 0),
+    totalFeesDue: actualFeesDue,
     totalPaymentsReceived: Number(paymentsAggregation._sum.amountPaid || 0),
   });
 }

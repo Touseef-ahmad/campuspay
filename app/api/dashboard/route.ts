@@ -46,13 +46,13 @@ export async function GET(req: NextRequest) {
     lastMonthPayments,
     totalExpenses,
   ] = await Promise.all([
-    // Total pending fees
+    // Total pending fees (with due and paid amounts)
     prisma.studentFee.aggregate({
       where: {
         ...studentInstituteFilter,
         status: { in: ["PENDING", "PARTIAL"] },
       },
-      _sum: { amountDue: true },
+      _sum: { amountDue: true, amountPaid: true },
       _count: true,
     }),
     // All accounts
@@ -91,6 +91,13 @@ export async function GET(req: NextRequest) {
   const monthlyRevenue = Number(monthlyPayments._sum.amountPaid ?? 0);
   const lastMonthRevenue = Number(lastMonthPayments._sum.amountPaid ?? 0);
 
+  // Calculate actual pending dues (amountDue - amountPaid)
+  const totalDue = Number(pendingFees._sum?.amountDue ?? 0);
+  const totalPaidOnPending = Number(
+    (pendingFees._sum as { amountPaid?: unknown })?.amountPaid ?? 0,
+  );
+  const actualPendingDues = totalDue - totalPaidOnPending;
+
   // Calculate month-over-month change
   const revenueChange =
     lastMonthRevenue > 0
@@ -104,7 +111,7 @@ export async function GET(req: NextRequest) {
     // KPI data
     monthlyRevenue,
     revenueChange: Number(revenueChange),
-    pendingDues: Number(pendingFees._sum.amountDue ?? 0),
+    pendingDues: actualPendingDues,
     pendingCount: pendingFees._count,
     totalCollected: Number(totalPayments._sum.amountPaid ?? 0),
     totalExpenses: Number(totalExpenses._sum.amount ?? 0),
