@@ -33,6 +33,8 @@ import {
   Eye,
   Pencil,
   DollarSign,
+  Archive,
+  Trash2,
 } from "lucide-react";
 import { EnrollStudentModal } from "@/components/enroll-student-modal";
 import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
@@ -96,6 +98,44 @@ export default function StudentsPage() {
 
   async function refreshData(q = "") {
     await Promise.all([load(q), loadStats()]);
+  }
+
+  async function handleDelete(studentId: string, studentName: string) {
+    if (!confirm(`Are you sure you want to delete ${studentName}?`)) return;
+
+    const res = await fetch(`/api/students/${studentId}`, {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      refreshData(search);
+    } else {
+      const data = await res.json();
+      if (data.code === "HAS_PAYMENTS") {
+        const shouldArchive = confirm(
+          `${data.message}\n\nWould you like to archive this student instead?`
+        );
+        if (shouldArchive) {
+          handleArchive(studentId);
+        }
+      } else {
+        alert(data.error || "Failed to delete student");
+      }
+    }
+  }
+
+  async function handleArchive(studentId: string) {
+    const res = await fetch(`/api/students/${studentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "archive" }),
+    });
+
+    if (res.ok) {
+      refreshData(search);
+    } else {
+      alert("Failed to archive student");
+    }
   }
 
   useEffect(() => {
@@ -379,6 +419,21 @@ export default function StudentsPage() {
                         >
                           <DollarSign className="h-4 w-4 text-gray-400" />
                           Add Payment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleArchive(s.id)}
+                        >
+                          <Archive className="h-4 w-4 text-gray-400" />
+                          Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={() =>
+                            handleDelete(s.id, `${s.firstName} ${s.lastName}`)
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
   const students = await prisma.student.findMany({
     where: {
       instituteId: auth.instituteId,
+      status: { not: "archived" },
       OR: search
         ? [
             { firstName: { contains: search, mode: "insensitive" } },

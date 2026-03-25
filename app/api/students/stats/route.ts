@@ -9,9 +9,9 @@ export async function GET(req: NextRequest) {
 
   const instituteId = auth.instituteId;
 
-  // Total students
+  // Total students (excluding archived)
   const total = await prisma.student.count({
-    where: { instituteId },
+    where: { instituteId, status: { not: "archived" } },
   });
 
   // Active students
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const studentsWithDueFees = await prisma.student.count({
     where: {
       instituteId,
+      status: { not: "archived" },
       studentFees: {
         some: {
           status: { not: "PAID" },
@@ -31,10 +32,10 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // Total fees due (sum of all unpaid amounts)
+  // Total fees due (sum of all unpaid amounts, excluding archived students)
   const feesAggregation = await prisma.studentFee.aggregate({
     where: {
-      student: { instituteId },
+      student: { instituteId, status: { not: "archived" } },
       status: { not: "PAID" },
     },
     _sum: {

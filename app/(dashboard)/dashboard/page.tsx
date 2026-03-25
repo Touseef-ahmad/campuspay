@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   LineChart,
   AlertTriangle,
@@ -13,162 +13,166 @@ import {
 import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
-// Static sample data – replace with real API calls when endpoints are ready
-// TODO: fetch KPI values from /api/dashboard
+// Types
 // ---------------------------------------------------------------------------
-const KPI_CARDS = [
-  {
-    label: "Total Monthly Revenue",
-    value: "RS 248,500",
-    trend: "up",
-    trendText: "12.5% from last month",
-    icon: LineChart,
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-500",
-  },
-  {
-    label: "Total Due Fees",
-    value: "RS 42,350",
-    trend: "down",
-    trendText: "3.2% pending collection",
-    icon: AlertTriangle,
-    iconBg: "bg-orange-50",
-    iconColor: "text-orange-500",
-  },
-  {
-    label: "Total Amount Credited",
-    value: "RS 200K",
-    trend: "up",
-    trendText: "24 new this week",
-    icon: Wallet,
-    iconBg: "bg-green-50",
-    iconColor: "text-green-500",
-  },
-  {
-    label: "Total Amount Debited",
-    value: "RS 600K",
-    trend: "up",
-    trendText: "This semester",
-    icon: CreditCard,
-    iconBg: "bg-purple-50",
-    iconColor: "text-purple-500",
-  },
-];
+interface DashboardStats {
+  monthlyRevenue: number;
+  revenueChange: number;
+  pendingDues: number;
+  totalCollected: number;
+  totalExpenses: number;
+}
 
-// ---------------------------------------------------------------------------
-// Static ledger rows – replace with real API calls when endpoints are ready
-// TODO: fetch from /api/transactions and map to this shape
-// ---------------------------------------------------------------------------
-type LedgerRow = {
-  id: number;
+interface Transaction {
+  id: string;
+  type: "credit" | "debit";
+  amount: number;
   date: string;
-  category: "Fee Collection" | "Expense";
   description: string;
-  credit: string | null;
-  debit: string | null;
-};
-
-const LEDGER_ROWS: LedgerRow[] = [
-  {
-    id: 1,
-    date: "2-Mar-2026",
-    category: "Fee Collection",
-    description: "Arslan paid registration fee",
-    credit: null,
-    debit: "200k",
-  },
-  {
-    id: 2,
-    date: "3-Mar-2026",
-    category: "Expense",
-    description: "Paid salary to Saad employee",
-    credit: "100k",
-    debit: null,
-  },
-  {
-    id: 3,
-    date: "5-Mar-2026",
-    category: "Fee Collection",
-    description: "Bilal paid semester fee",
-    credit: null,
-    debit: "150k",
-  },
-  {
-    id: 4,
-    date: "6-Mar-2026",
-    category: "Expense",
-    description: "Office supplies purchased",
-    credit: "15k",
-    debit: null,
-  },
-  {
-    id: 5,
-    date: "8-Mar-2026",
-    category: "Fee Collection",
-    description: "Hina paid admission fee",
-    credit: null,
-    debit: "80k",
-  },
-  {
-    id: 6,
-    date: "10-Mar-2026",
-    category: "Expense",
-    description: "Utility bills payment",
-    credit: "30k",
-    debit: null,
-  },
-  {
-    id: 7,
-    date: "12-Mar-2026",
-    category: "Fee Collection",
-    description: "Usman paid tuition fee",
-    credit: null,
-    debit: "120k",
-  },
-  {
-    id: 8,
-    date: "14-Mar-2026",
-    category: "Expense",
-    description: "Maintenance & repair work",
-    credit: "45k",
-    debit: null,
-  },
-  {
-    id: 9,
-    date: "16-Mar-2026",
-    category: "Fee Collection",
-    description: "Sana paid exam fee",
-    credit: null,
-    debit: "60k",
-  },
-  {
-    id: 10,
-    date: "18-Mar-2026",
-    category: "Expense",
-    description: "Paid salary to Ali employee",
-    credit: "240k",
-    debit: null,
-  },
-];
+  account: string;
+  method?: string;
+  category?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Category filter options
-// TODO: fetch categories dynamically from /api/expense-categories
 // ---------------------------------------------------------------------------
 const CATEGORIES = ["All", "Fee Collection", "Expense"];
 
 export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
-  // TODO: wire dateFilter to a real date-picker component
   const [dateFilter] = useState("18-Mar-2026");
+  const [stats, setStats] = useState<DashboardStats>({
+    monthlyRevenue: 0,
+    revenueChange: 0,
+    pendingDues: 0,
+    totalCollected: 0,
+    totalExpenses: 0,
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredRows =
-    categoryFilter === "All"
-      ? LEDGER_ROWS
-      : LEDGER_ROWS.filter((r) => r.category === categoryFilter);
+  // Fetch dashboard data
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [dashboardRes, transactionsRes] = await Promise.all([
+          fetch("/api/dashboard"),
+          fetch("/api/transactions"),
+        ]);
+
+        if (dashboardRes.ok) {
+          const data = await dashboardRes.json();
+          setStats({
+            monthlyRevenue: data.monthlyRevenue ?? 0,
+            revenueChange: data.revenueChange ?? 0,
+            pendingDues: data.pendingDues ?? 0,
+            totalCollected: data.totalCollected ?? 0,
+            totalExpenses: data.totalExpenses ?? 0,
+          });
+        }
+
+        if (transactionsRes.ok) {
+          const data = await transactionsRes.json();
+          setTransactions(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        // Keep defaults on error
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  // Format currency helper
+  function formatCurrency(amount: number) {
+    if (amount >= 1000000) {
+      return `RS ${(amount / 1000000).toFixed(1)}M`;
+    }
+    if (amount >= 1000) {
+      return `RS ${(amount / 1000).toFixed(0)}K`;
+    }
+    return `RS ${amount.toLocaleString()}`;
+  }
+
+  // Format date helper
+  function formatDate(dateStr: string) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  // KPI cards data (now dynamic)
+  const KPI_CARDS = [
+    {
+      label: "Total Monthly Revenue",
+      value: formatCurrency(stats.monthlyRevenue),
+      trend: stats.revenueChange >= 0 ? "up" : "down",
+      trendText: `${Math.abs(stats.revenueChange)}% from last month`,
+      icon: LineChart,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-500",
+    },
+    {
+      label: "Total Due Fees",
+      value: formatCurrency(stats.pendingDues),
+      trend: "down",
+      trendText: "pending collection",
+      icon: AlertTriangle,
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-500",
+    },
+    {
+      label: "Total Amount Credited",
+      value: formatCurrency(stats.totalCollected),
+      trend: "up",
+      trendText: "Total collected",
+      icon: Wallet,
+      iconBg: "bg-green-50",
+      iconColor: "text-green-500",
+    },
+    {
+      label: "Total Amount Debited",
+      value: formatCurrency(stats.totalExpenses),
+      trend: "up",
+      trendText: "Total expenses",
+      icon: CreditCard,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-500",
+    },
+  ];
+
+  // Transform transactions to ledger rows
+  const ledgerRows = useMemo(() => {
+    return transactions.map((t) => ({
+      id: t.id,
+      date: formatDate(t.date),
+      category: t.type === "credit" ? "Fee Collection" : "Expense",
+      description: t.description,
+      credit: t.type === "debit" ? t.amount : null,
+      debit: t.type === "credit" ? t.amount : null,
+    }));
+  }, [transactions]);
+
+  // Filter rows by category
+  const filteredRows = useMemo(() => {
+    if (categoryFilter === "All") return ledgerRows;
+    return ledgerRows.filter((r) => r.category === categoryFilter);
+  }, [ledgerRows, categoryFilter]);
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    const credit = filteredRows.reduce((sum, r) => sum + (r.credit || 0), 0);
+    const debit = filteredRows.reduce((sum, r) => sum + (r.debit || 0), 0);
+    return { credit, debit, total: credit + debit };
+  }, [filteredRows]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] space-y-6">
+    <div className="min-h-screen space-y-6 bg-[#F8F9FA]">
       {/* ------------------------------------------------------------------ */}
       {/* 1. Page Header                                                       */}
       {/* ------------------------------------------------------------------ */}
@@ -182,8 +186,7 @@ export default function DashboardPage() {
             enrollment
           </p>
         </div>
-        {/* TODO: wire "Add Payment" to open a payment modal */}
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button className="bg-blue-600 text-white hover:bg-blue-700">
           <Plus className="h-4 w-4" />
           Add Payment
         </Button>
@@ -199,18 +202,18 @@ export default function DashboardPage() {
           return (
             <div
               key={card.label}
-              className="bg-white rounded-lg border border-gray-200 p-5"
+              className="rounded-lg border border-gray-200 bg-white p-5"
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-gray-500">{card.label}</span>
                 <span
-                  className={`inline-flex items-center justify-center h-8 w-8 rounded ${card.iconBg}`}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded ${card.iconBg}`}
                 >
                   <Icon className={`h-4 w-4 ${card.iconColor}`} />
                 </span>
               </div>
-              <div className="text-2xl font-bold text-gray-900 mb-2">
-                {card.value}
+              <div className="mb-2 text-2xl font-bold text-gray-900">
+                {loading ? "..." : card.value}
               </div>
               <p
                 className={`text-xs font-medium ${isUp ? "text-green-600" : "text-red-500"}`}
@@ -225,37 +228,35 @@ export default function DashboardPage() {
       {/* ------------------------------------------------------------------ */}
       {/* 3. Filters Bar                                                       */}
       {/* ------------------------------------------------------------------ */}
-      <div className="bg-white rounded-lg border border-gray-200 px-5 py-4 flex flex-wrap items-center gap-6">
+      <div className="flex flex-wrap items-center gap-6 rounded-lg border border-gray-200 bg-white px-5 py-4">
         {/* Category filter */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 font-medium">Category</span>
-          {/* TODO: replace with a proper <Select> dropdown component */}
+          <span className="text-xs font-medium text-gray-400">Category</span>
           <div className="relative">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="appearance-none border border-gray-200 rounded-md text-sm px-3 py-1.5 pr-7 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="appearance-none rounded-md border border-gray-200 bg-white px-3 py-1.5 pr-7 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           </div>
         </div>
 
         {/* Date filter */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 font-medium">Date</span>
-          {/* TODO: replace with a real date-picker (e.g. react-day-picker) */}
+          <span className="text-xs font-medium text-gray-400">Date</span>
           <div className="relative">
             <input
               type="text"
               readOnly
               value={dateFilter}
-              className="border border-gray-200 rounded-md text-sm px-3 py-1.5 pr-8 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+              className="w-36 rounded-md border border-gray-200 bg-white px-3 py-1.5 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <Calendar className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Calendar className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           </div>
         </div>
       </div>
@@ -263,8 +264,8 @@ export default function DashboardPage() {
       {/* ------------------------------------------------------------------ */}
       {/* 4. Financial Ledger Table                                            */}
       {/* ------------------------------------------------------------------ */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100">
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-lg font-bold text-gray-900">Financial Ledger</h2>
         </div>
 
@@ -276,7 +277,7 @@ export default function DashboardPage() {
                   (h) => (
                     <th
                       key={h}
-                      className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-400"
                     >
                       {h}
                     </th>
@@ -285,44 +286,74 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredRows.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 text-gray-800">{row.date}</td>
-                  <td className="px-6 py-3 text-gray-800">{row.category}</td>
-                  <td className="px-6 py-3 text-gray-800">{row.description}</td>
-                  <td className="px-6 py-3 font-medium">
-                    {row.credit ? (
-                      <span className="text-red-500">{row.credit}</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3 font-medium">
-                    {row.debit ? (
-                      <span className="text-green-600">{row.debit}</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-8 text-center text-gray-400"
+                  >
+                    Loading...
                   </td>
                 </tr>
-              ))}
+              ) : filteredRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-8 text-center text-gray-400"
+                  >
+                    No transactions found
+                  </td>
+                </tr>
+              ) : (
+                filteredRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="transition-colors hover:bg-gray-50"
+                  >
+                    <td className="px-6 py-3 text-gray-800">{row.date}</td>
+                    <td className="px-6 py-3 text-gray-800">{row.category}</td>
+                    <td className="px-6 py-3 text-gray-800">
+                      {row.description}
+                    </td>
+                    <td className="px-6 py-3 font-medium">
+                      {row.credit ? (
+                        <span className="text-red-500">
+                          {formatCurrency(row.credit)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 font-medium">
+                      {row.debit ? (
+                        <span className="text-green-600">
+                          {formatCurrency(row.debit)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             {/* Summary footer */}
             <tfoot>
-              <tr className="bg-gray-50 border-t-2 border-gray-200">
+              <tr className="border-t-2 border-gray-200 bg-gray-50">
                 <td
                   colSpan={3}
-                  className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider"
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500"
                 >
                   Total Amount
                 </td>
-                <td className="px-6 py-3 font-bold text-red-500 text-sm">
-                  CREDIT: 430K
+                <td className="px-6 py-3 text-sm font-bold text-red-500">
+                  CREDIT: {formatCurrency(totals.credit)}
                 </td>
-                <td className="px-6 py-3 font-bold text-green-600 text-sm">
-                  {/* TODO: compute totals dynamically from filtered rows */}
-                  DEBIT: 800K
-                  <span className="ml-6 text-blue-600">TOTAL: 1200K</span>
+                <td className="px-6 py-3 text-sm font-bold text-green-600">
+                  DEBIT: {formatCurrency(totals.debit)}
+                  <span className="ml-6 text-blue-600">
+                    TOTAL: {formatCurrency(totals.total)}
+                  </span>
                 </td>
               </tr>
             </tfoot>
