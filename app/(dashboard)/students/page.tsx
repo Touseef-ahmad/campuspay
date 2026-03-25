@@ -35,6 +35,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { EnrollStudentModal } from "@/components/enroll-student-modal";
+import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
 
 interface Student {
   id: string;
@@ -54,9 +55,13 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-
-  // TODO: Fetch KPI stats from a dedicated /api/students/stats endpoint
-  const stats = { total: 48, active: 48, withDueFees: 48 };
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentStudentId, setPaymentStudentId] = useState<string | undefined>();
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    withDueFees: 0,
+  });
 
   // Filter state
   // TODO: Pass these filter values to load() once the /api/students endpoint supports them
@@ -64,6 +69,22 @@ export default function StudentsPage() {
   const [filterSemester, setFilterSemester] = useState("fall-2024");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDate, setFilterDate] = useState("2026-03-18");
+
+  async function loadStats() {
+    try {
+      const res = await fetch("/api/students/stats");
+      if (res.ok) {
+        const data = await res.json();
+        setStats({
+          total: data.total ?? 0,
+          active: data.active ?? 0,
+          withDueFees: data.withDueFees ?? 0,
+        });
+      }
+    } catch {
+      // Keep default stats on error
+    }
+  }
 
   async function load(q = "") {
     setLoading(true);
@@ -73,10 +94,17 @@ export default function StudentsPage() {
     setLoading(false);
   }
 
+  async function refreshData(q = "") {
+    await Promise.all([load(q), loadStats()]);
+  }
+
   useEffect(() => {
     async function initialLoad() {
-      const res = await fetch("/api/students?q=");
-      const data = await res.json();
+      const [studentsRes] = await Promise.all([
+        fetch("/api/students?q="),
+        loadStats(),
+      ]);
+      const data = await studentsRes.json();
       setStudents(Array.isArray(data) ? data : []);
       setLoading(false);
     }
@@ -107,8 +135,14 @@ export default function StudentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* TODO: Wire "Add Payment" to a payment creation flow */}
-          <Button variant="outline" className="gap-1">
+          <Button
+            variant="outline"
+            className="gap-1"
+            onClick={() => {
+              setPaymentStudentId(undefined);
+              setPaymentModalOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4" />
             Add Payment
           </Button>
@@ -122,18 +156,22 @@ export default function StudentsPage() {
           <EnrollStudentModal
             open={open}
             onOpenChange={setOpen}
-            onSuccess={() => load(search)}
+            onSuccess={() => refreshData(search)}
+          />
+          <AddStudentPaymentModal
+            open={paymentModalOpen}
+            onOpenChange={setPaymentModalOpen}
+            onSuccess={() => refreshData(search)}
+            preselectedStudentId={paymentStudentId}
           />
         </div>
       </div>
 
       {/* 2. KPI Summary Cards */}
-      {/* TODO: Replace hardcoded values once /api/students/stats is implemented */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Total No of Students", value: stats.total },
           { label: "Active Students", value: stats.active },
-          { label: "Students with Due Fees", value: stats.withDueFees },
           { label: "Students with Due Fees", value: stats.withDueFees },
         ].map((card, i) => (
           <Card key={i} className="border bg-white">
@@ -335,7 +373,8 @@ export default function StudentsPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {
-                            // TODO: Open add payment dialog for this student
+                            setPaymentStudentId(s.id);
+                            setPaymentModalOpen(true);
                           }}
                         >
                           <DollarSign className="h-4 w-4 text-gray-400" />

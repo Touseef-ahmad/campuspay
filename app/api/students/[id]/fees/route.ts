@@ -10,12 +10,64 @@ const schema = z.object({
   termId: z.string().optional(),
 });
 
-export async function POST(
+export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: studentId } = await params;
+
+  // Verify student belongs to institute
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, instituteId: auth.instituteId },
+  });
+  if (!student)
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
+
+  // Fetch student fees with payments aggregated
+  const studentFees = await prisma.studentFee.findMany({
+    where: { studentId },
+    include: {
+      fee: true,
+      payments: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Calculate amountPaid and balance for each fee
+  const feesWithBalances = studentFees.map((sf) => {
+    const amountPaid = sf.payments.reduce(
+      (sum, p) => sum + Number(p.amountPaid),
+      0,
+    );
+    const balance = Number(sf.amountDue) - amountPaid;
+    return {
+      id: sf.id,
+      feeId: sf.feeId,
+      feeName: sf.fee.name,
+      feeType: sf.fee.type,
+      amountDue: Number(sf.amountDue),
+      amountPaid,
+      balance,
+      status: sf.status,
+      dueDate: sf.dueDate,
+      createdAt: sf.createdAt,
+    };
+  });
+
+  return NextResponse.json(feesWithBalances);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = getAuthPayload(req);
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: studentId } = await params;
 
@@ -23,11 +75,20 @@ export async function POST(
     const body = await req.json();
     const data = schema.parse(body);
 
-    const student = await prisma.student.findFirst({ where: { id: studentId, instituteId: auth.instituteId } });
-    if (!student) return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    const student = await prisma.student.findFirst({
+      where: { id: studentId, instituteId: auth.instituteId },
+    });
+    if (!student)
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
 
-    const fee = await prisma.fee.findFirst({ where: { id: data.feeId, instituteId: auth.instituteId } });
-    if (!fee) return NextResponse.json({ error: "Fee template not found" }, { status: 404 });
+    const fee = await prisma.fee.findFirst({
+      where: { id: data.feeId, instituteId: auth.instituteId },
+    });
+    if (!fee)
+      return NextResponse.json(
+        { error: "Fee template not found" },
+        { status: 404 },
+      );
 
     const studentFee = await prisma.studentFee.create({
       data: {
@@ -42,7 +103,11 @@ export async function POST(
 
     return NextResponse.json(studentFee, { status: 201 });
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.issues }, { status: 400 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

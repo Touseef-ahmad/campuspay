@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,11 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Plus, Check, Trash2 } from "lucide-react";
 
-interface CustomFee {
+interface FeeItem {
   id: string;
-  label: string;
-  billingCycle: string;
+  name: string;
   amount: string;
+  type: string;
 }
 
 interface EnrollStudentModalProps {
@@ -31,6 +31,17 @@ interface EnrollStudentModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
+
+// Default pre-populated fees
+const DEFAULT_FEES: FeeItem[] = [
+  { id: "tuition", name: "Tuition Fee", amount: "4500", type: "tuition" },
+  {
+    id: "registration",
+    name: "Registration Fee",
+    amount: "500",
+    type: "registration",
+  },
+];
 
 export function EnrollStudentModal({
   open,
@@ -45,9 +56,25 @@ export function EnrollStudentModal({
     academicYear: "",
   });
   const [selectedProgram, setSelectedProgram] = useState("");
-  const [customFees, setCustomFees] = useState<CustomFee[]>([]);
+  const [fees, setFees] = useState<FeeItem[]>(DEFAULT_FEES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Calculate total
+  const totalAmount = useMemo(() => {
+    return fees.reduce((sum, fee) => {
+      const amount = parseFloat(fee.amount) || 0;
+      return sum + amount;
+    }, 0);
+  }, [fees]);
+
+  function formatCurrency(amount: number) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  }
 
   function resetForm() {
     setForm({
@@ -58,7 +85,7 @@ export function EnrollStudentModal({
     });
     setStep(1);
     setSelectedProgram("");
-    setCustomFees([]);
+    setFees([...DEFAULT_FEES]);
     setError("");
   }
 
@@ -67,40 +94,43 @@ export function EnrollStudentModal({
     if (!isOpen) resetForm();
   }
 
-  function addCustomFee() {
-    setCustomFees((prev) => [
+  function addFee() {
+    setFees((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), label: "", billingCycle: "", amount: "" },
+      { id: crypto.randomUUID(), name: "", amount: "", type: "custom" },
     ]);
   }
 
-  function updateCustomFee(id: string, field: keyof CustomFee, value: string) {
-    setCustomFees((prev) =>
+  function updateFee(id: string, field: keyof FeeItem, value: string) {
+    setFees((prev) =>
       prev.map((fee) => (fee.id === id ? { ...fee, [field]: value } : fee)),
     );
   }
 
-  function removeCustomFee(id: string) {
-    setCustomFees((prev) => prev.filter((fee) => fee.id !== id));
+  function removeFee(id: string) {
+    setFees((prev) => prev.filter((fee) => fee.id !== id));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    // Validate at least one fee with valid amount
+    const validFees = fees.filter(
+      (f) => f.name.trim() && parseFloat(f.amount) > 0,
+    );
+
     setSaving(true);
     try {
-      // TODO: Include selectedProgram and customFees in the API payload
-      // TODO: Create enrollment record with associated fees
       const res = await fetch("/api/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          program: selectedProgram,
-          customFees: customFees.map((f) => ({
-            label: f.label,
-            billingCycle: f.billingCycle,
-            amount: parseFloat(f.amount) || 0,
+          fees: validFees.map((f) => ({
+            name: f.name,
+            amount: parseFloat(f.amount),
+            type: f.type,
           })),
         }),
       });
@@ -277,7 +307,6 @@ export function EnrollStudentModal({
                   <SelectValue placeholder="Select a program" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* TODO: Fetch programs from /api/programs endpoint */}
                   <SelectItem value="cs-bachelor">
                     Bachelor of Computer Science
                   </SelectItem>
@@ -297,107 +326,56 @@ export function EnrollStudentModal({
               </Select>
             </div>
 
-            {/* Mandatory Fees Section */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Mandatory Fees
-              </h3>
-              <div className="rounded-lg border bg-gray-50 p-4">
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-gray-700">Tuition</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    $4,500.00
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-t py-2">
-                  <span className="text-sm text-gray-700">Registration</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    $500.00
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-sm font-semibold text-gray-900">
-                    Total Mandatory
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    $5,000.00
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Fee Section */}
+            {/* Fees Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">
-                  Custom Fees
+                  Enrollment Fees
                 </h3>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addCustomFee}
+                  onClick={addFee}
                   className="gap-1"
                 >
                   <Plus className="h-3 w-3" />
-                  Add Additional Fee
+                  Add Fee
                 </Button>
               </div>
 
-              {customFees.length === 0 ? (
+              {fees.length === 0 ? (
                 <p className="text-sm italic text-gray-500">
-                  No custom fees added yet.
+                  No fees added. Click &quot;Add Fee&quot; to add enrollment
+                  fees.
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {customFees.map((fee) => (
+                  {fees.map((fee) => (
                     <div
                       key={fee.id}
                       className="flex items-end gap-3 rounded-lg border bg-white p-3"
                     >
                       <div className="flex-1 space-y-1">
-                        <Label className="text-xs">Fee Label</Label>
+                        <Label className="text-xs">Fee Name</Label>
                         <Input
-                          value={fee.label}
+                          value={fee.name}
                           onChange={(e) =>
-                            updateCustomFee(fee.id, "label", e.target.value)
+                            updateFee(fee.id, "name", e.target.value)
                           }
-                          placeholder="e.g., Lab Fee"
+                          placeholder="e.g., Tuition Fee"
                           className="h-9"
                         />
                       </div>
-                      <div className="w-36 space-y-1">
-                        <Label className="text-xs">Billing Cycle</Label>
-                        <Select
-                          value={fee.billingCycle}
-                          onValueChange={(v) =>
-                            updateCustomFee(fee.id, "billingCycle", v)
-                          }
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {/* TODO: Fetch billing cycles from API or config */}
-                            <SelectItem value="one-time">One-time</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                            <SelectItem value="semester">
-                              Per Semester
-                            </SelectItem>
-                            <SelectItem value="annual">Annual</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-28 space-y-1">
-                        <Label className="text-xs">Amount</Label>
+                      <div className="w-32 space-y-1">
+                        <Label className="text-xs">Amount ($)</Label>
                         <Input
                           type="number"
                           min="0"
                           step="0.01"
                           value={fee.amount}
                           onChange={(e) =>
-                            updateCustomFee(fee.id, "amount", e.target.value)
+                            updateFee(fee.id, "amount", e.target.value)
                           }
                           placeholder="0.00"
                           className="h-9"
@@ -407,7 +385,7 @@ export function EnrollStudentModal({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeCustomFee(fee.id)}
+                        onClick={() => removeFee(fee.id)}
                         className="h-9 w-9 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -416,6 +394,18 @@ export function EnrollStudentModal({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Total Section */}
+            <div className="rounded-lg border bg-gray-50 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-900">
+                  Total Fees
+                </span>
+                <span className="text-lg font-bold text-gray-900">
+                  {formatCurrency(totalAmount)}
+                </span>
+              </div>
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
