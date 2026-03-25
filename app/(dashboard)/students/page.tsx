@@ -4,15 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -42,6 +34,7 @@ import {
   Pencil,
   DollarSign,
 } from "lucide-react";
+import { EnrollStudentModal } from "@/components/enroll-student-modal";
 
 interface Student {
   id: string;
@@ -72,16 +65,6 @@ export default function StudentsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDate, setFilterDate] = useState("2026-03-18");
 
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    department: "",
-    enrollmentDate: "",
-    academicYear: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
   async function load(q = "") {
     setLoading(true);
     const res = await fetch(`/api/students?q=${encodeURIComponent(q)}`);
@@ -91,42 +74,19 @@ export default function StudentsPage() {
   }
 
   useEffect(() => {
-    load();
+    async function initialLoad() {
+      const res = await fetch("/api/students?q=");
+      const data = await res.json();
+      setStudents(Array.isArray(data) ? data : []);
+      setLoading(false);
+    }
+    initialLoad();
   }, []);
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        setError(d.error ?? "Failed to add student");
-        return;
-      }
-      setOpen(false);
-      setForm({
-        firstName: "",
-        lastName: "",
-        department: "",
-        enrollmentDate: "",
-        academicYear: "",
-      });
-      load(search);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function formatCurrency(amount: number) {
     return new Intl.NumberFormat("en-US", {
@@ -152,106 +112,18 @@ export default function StudentsPage() {
             <Plus className="h-4 w-4" />
             Add Payment
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-1 bg-blue-600 text-white hover:bg-blue-700">
-                <Plus className="h-4 w-4" />
-                Enroll New Student
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Student</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleAdd} className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label>First Name</Label>
-                  <Input
-                    value={form.firstName}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, firstName: e.target.value }))
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input
-                    value={form.lastName}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, lastName: e.target.value }))
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select
-                    value={form.department}
-                    onValueChange={(v) =>
-                      setForm((p) => ({ ...p, department: v }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[
-                        "Computer Science",
-                        "Engineering",
-                        "Business",
-                        "Arts",
-                        "Science",
-                        "Mathematics",
-                        "Law",
-                        "Medicine",
-                      ].map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Enrollment Date</Label>
-                  <Input
-                    type="date"
-                    value={form.enrollmentDate}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        enrollmentDate: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Academic Year</Label>
-                  <Input
-                    placeholder="e.g. 2024-2025"
-                    value={form.academicYear}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, academicYear: e.target.value }))
-                    }
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Saving…" : "Add Student"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button
+            className="gap-1 bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => setOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Enroll New Student
+          </Button>
+          <EnrollStudentModal
+            open={open}
+            onOpenChange={setOpen}
+            onSuccess={() => load(search)}
+          />
         </div>
       </div>
 
