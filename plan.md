@@ -1,141 +1,76 @@
-Product Specification: School Financial Management System (Mini-ERP)
+This plan outlines the transition of your student management app from a "flat" fee tracker to a **Multi-Term Academic Engine**. This architecture supports multiple institutions, automated promotions, and historical financial integrity.
 
-1. App Overview
+---
 
-A multi-tenant, SaaS-based financial management system designed for educational institutes. It manages student enrollments, on-demand fee invoicing, payment tracking, and internal school accounting (expenses and account transfers).
+## Phase 1: Schema Enhancements (The Foundation)
 
-2. Tech Stack
+To support recurring semesters and graduation, we need to add "Program" logic and "Fee Frequencies" to your existing Prisma schema.
 
-Frontend: Next.js (App Router), React, Tailwind CSS, shadcn/ui, Lucide Icons.
+### 1.1 New Models & Enums
 
-Backend: Next.js Route Handlers (REST API).
+- **`Program` Model:** Defines the course of study (e.g., "Diploma in IT"). It stores `totalSemesters` (e.g., 6) so the system knows when a student is finished.
+- **`StudentStatus` Enum:** Change the string status to an Enum: `ACTIVE`, `GRADUATED`, `DROPPED`, `ALUMNI`.
+- **`FeeFrequency` Enum:** Categorize fees as `ONCE` (Admission), `MONTHLY` (Tuition), or `PER_SEMESTER` (Exam fees).
+- **`Student` Updates:** Add `currentSemesterNumber` (Int) and `programId`.
 
-Database: PostgreSQL.
+### 1.2 Updated Relationships
 
-ORM: Prisma.
+- **`Student` ↔ `Program`**: A student belongs to one program.
+- **`AcademicTerm` ↔ `Sequence`**: Add a `termSequence` (Int) to `AcademicTerm` to help the UI order semesters (e.g., Fall 2025 is Sequence 1, Spring 2026 is Sequence 2).
 
-3. User Roles & Authentication
+---
 
-The system uses Role-Based Access Control (RBAC) and supports multi-tenancy.
+## Phase 2: The "Term Rollover" Logic (The Backend)
 
-System Admin (SaaS Owner): institute_id is null. Has global access across all tenant schools.
+The rollover is a **System Job** that processes students in bulk. It must be wrapped in a **Database Transaction** ($$prisma.\$transaction$$) so that if one step fails, the whole process rolls back to prevent data corruption.
 
-School Admin (Tenant Owner): Tied to a specific institute_id. Full CRUD access for their school. Approves new staff accounts.
+### The "Promotion" Algorithm:
 
-Staff/Accountant: Tied to a specific institute_id. Can manage fees, payments, and expenses. Must be approved by a School Admin before accessing the dashboard (is_approved = true).
+1.  **Filter:** Select all `ACTIVE` students for the specific `instituteId`.
+2.  **Graduation Check:**
+    - If `student.currentSemesterNumber >= program.totalSemesters`, change status to `GRADUATED`.
+    - **Logic Gate:** If the student still has a balance (`amountDue > amountPaid`), flag them as `GRADUATED_WITH_DEBT` to restrict transcript access.
+3.  **Calculate Arrears:**
+    - For students staying `ACTIVE`, sum all unpaid `StudentFee` records from the _previous_ term.
+    - Create a new `StudentFee` in the **New Term** called "Arrears" with the calculated balance.
+4.  **Fee Promotion:**
+    - Query the `Fee` table for `PER_SEMESTER` and `MONTHLY` fees.
+    - Automatically generate these new `StudentFee` records for the student in the **New Term**.
+5.  **Increment Progress:** Update `student.currentSemesterNumber += 1`.
 
-4. Core Workflows
+---
 
-On-Demand Fee Application: Admins can create a "Fee Template" (e.g., "Trip Fee - $50") and apply it to individual students or groups at any time, generating a "Student Fee" invoice.
+## Phase 3: The Multi-Step UI (The User Experience)
 
-Payment Collection: When a student pays, a Payment Transaction is logged against their specific invoice. The system automatically updates the invoice status (Pending -> Partial -> Paid) and deposits the amount into a specified Financial Account (e.g., "Main Bank").
+Since your app is Multi-Institution, the Admin for "School A" needs a safe, guided way to close their semester.
 
-Internal Accounting: The school can track out-going money by logging Expenses against specific categories and deducting from Financial Accounts. Money can also be moved between accounts via Account Transfers.
+### The "New Semester Wizard"
 
-5. Database Schema Structure (Prisma Models)
+- **Step 1: Selection:** Admin selects "Close Term: Fall 2025" and "Open Term: Spring 2026."
+- **Step 2: Graduation Review:** A list of students who have completed their `totalSemesters`. The Admin can manually override or confirm their graduation.
+- **Step 3: Fee Setup:** The Admin reviews which fees will "Auto-Apply" to the next semester (e.g., Tuition: $500, Arrears: Variable).
+- **Step 4: Preview/Dry Run:** The system generates a summary: _"You are about to promote 120 students and carry forward $3,500 in unpaid debt. Proceed?"_
+- **Step 5: Execution:** A progress bar shows the database updating in real-time.
 
-Administration & Security
+---
 
-Institute: id, name, address, createdAt
+## Phase 4: Financial & Reporting Integrity
 
-User: id, instituteId (nullable), roleId, email, passwordHash, isSystemAdmin, isApproved
+By linking every fee to a `termId`, you solve the "Starting Over" problem without losing history.
 
-Role: id, name, permissions
+1.  **The "Live" Ledger:** The main dashboard only shows fees where `termId == CurrentActiveTerm`.
+2.  **The "Student Statement":** A full historical view that fetches **all** `StudentFee` and `PaymentTransaction` records across every term the student was enrolled in.
+3.  **Income Reports:** You can now generate a "Revenue per Semester" chart, allowing the Institute to compare Spring income vs. Fall income.
 
-AuditLog: id, userId, action, targetTable, targetId, timestamp
+---
 
-Academics
+## Phase 5: Implementation Priority
 
-AcademicTerm: id, instituteId, name, startDate, endDate
+1.  **Refactor Schema:** Add `Program`, `FeeFrequency`, and `currentSemesterNumber`.
+2.  **Seed Data:** Assign existing students to a `Program` and a `currentSemesterNumber`.
+3.  **Build the Service:** Write the backend function that handles the "Arrears + Promotion" logic.
+4.  **Build the UI Wizard:** Create the multi-step form for the Institute Admins.
 
-Course: id, instituteId, name, code
+---
 
-Student: id, instituteId, firstName, lastName, status
-
-Enrollment: id, studentId, courseId, termId
-
-Fee Engine (Invoicing)
-
-Fee (Template): id, instituteId, name, defaultAmount, type
-
-StudentFee (Invoice): id, studentId, feeId, termId, amountDue, dueDate, status (Pending, Partial, Paid)
-
-Accounting & Cash Flow
-
-FinancialAccount: id, instituteId, name, type (Bank/Cash), balance, isDefault
-
-PaymentTransaction: id, studentFeeId, financialAccountId, amountPaid, date, method
-
-ExpenseCategory: id, instituteId, name
-
-Expense: id, instituteId, financialAccountId, categoryId, amount, date, title
-
-AccountTransfer: id, instituteId, fromAccountId, toAccountId, amount, date
-
-6. UI / UX Page Structure
-
-Public / Auth Routes
-
-/login: User authentication.
-
-/onboarding: Register a new Institute and create the first School Admin account.
-
-/pending-approval: View for staff who have registered but aren't yet approved by their School Admin.
-
-Protected Admin Routes (Requires is_approved = true)
-
-/ (Dashboard): KPI cards (Pending Dues, Collected, Available Funds). Unified transaction feed (Credits/Debits) with date filters.
-
-/students: Searchable data table of students. "Add Student" modal.
-
-/students/[id]: Detailed profile.
-
-Academics Tab: Enrolled courses.
-
-Financials Tab: Ledger of assigned fees, payment history, "Apply Fee" button, "Collect Payment" button.
-
-/courses: Grid of available courses showing enrollment counts.
-
-/accounts: Financial command center. Displays balances for Bank/Petty Cash. Modals for "Record Expense" and "Transfer Funds". List of recent expenses.
-
-7. API Endpoints Map
-
-All protected routes must extract instituteId from the auth token to scope data securely.
-
-Users & Auth
-
-POST /api/auth/login
-
-POST /api/auth/register (Handles both institute creation and staff registration)
-
-PUT /api/users/[id]/approve (School Admin action)
-
-Academics
-
-GET /api/students | POST /api/students
-
-GET /api/courses | POST /api/courses
-
-POST /api/enrollments
-
-Fees & Payments
-
-GET /api/fees | POST /api/fees (Manage Templates)
-
-GET /api/student-fees (List invoices, filter by status)
-
-POST /api/students/[id]/fees (Apply a fee template to a student)
-
-GET /api/students/[id]/statement (Get a student's full financial ledger)
-
-POST /api/student-fees/[id]/payments (Collect payment, update invoice status, credit Financial Account)
-
-Accounting
-
-GET /api/accounts (List accounts and balances)
-
-GET /api/transactions (Unified ledger of payments in and expenses out)
-
-POST /api/expenses (Log an expense, debit Financial Account)
-
-POST /api/transfers (Move money between two Financial Accounts)
+**Would you like me to generate the actual Prisma code for the `Program` and `Fee` model updates so you can run the migration?**
