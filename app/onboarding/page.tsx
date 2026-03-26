@@ -161,7 +161,10 @@ export default function OnboardingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">
-                    Address <span className="text-muted-foreground text-xs">(optional)</span>
+                    Address{" "}
+                    <span className="text-muted-foreground text-xs">
+                      (optional)
+                    </span>
                   </Label>
                   <Input
                     placeholder="123 Main St, City"
@@ -221,7 +224,11 @@ export default function OnboardingPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -244,7 +251,11 @@ export default function OnboardingPage() {
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
