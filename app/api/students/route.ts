@@ -54,11 +54,11 @@ export async function GET(req: NextRequest) {
   const studentsWithFeeAggregates = students.map((student) => {
     const totalDue = student.studentFees.reduce(
       (sum, fee) => sum + Number(fee.amountDue),
-      0
+      0,
     );
     const totalPaid = student.studentFees.reduce(
       (sum, fee) => sum + Number(fee.amountPaid),
-      0
+      0,
     );
     const { studentFees, ...rest } = student;
     return {
