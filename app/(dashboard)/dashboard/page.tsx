@@ -11,6 +11,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +43,7 @@ const CATEGORIES = ["All", "Fee Collection", "Expense"];
 export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [dateFilter] = useState("18-Mar-2026");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     monthlyRevenue: 0,
     revenueChange: 0,
@@ -91,7 +93,7 @@ export default function DashboardPage() {
       return `RS ${(amount / 1000000).toFixed(1)}M`;
     }
     if (amount >= 1000) {
-      return `RS ${(amount / 1000).toFixed(0)}K`;
+      return `RS ${(amount / 1000).toFixed(1)}K`;
     }
     return `RS ${amount.toLocaleString()}`;
   }
@@ -186,10 +188,36 @@ export default function DashboardPage() {
             enrollment
           </p>
         </div>
-        <Button className="bg-blue-600 text-white hover:bg-blue-700">
+        <Button
+          className="bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => setPaymentModalOpen(true)}
+        >
           <Plus className="h-4 w-4" />
           Add Payment
         </Button>
+        <AddStudentPaymentModal
+          open={paymentModalOpen}
+          onOpenChange={setPaymentModalOpen}
+          onSuccess={() => {
+            // Refresh dashboard data after payment
+            fetch("/api/dashboard")
+              .then((res) => res.json())
+              .then((data) => {
+                setStats({
+                  monthlyRevenue: data.monthlyRevenue ?? 0,
+                  revenueChange: data.revenueChange ?? 0,
+                  pendingDues: data.pendingDues ?? 0,
+                  totalCollected: data.totalCollected ?? 0,
+                  totalExpenses: data.totalExpenses ?? 0,
+                });
+              });
+            fetch("/api/transactions")
+              .then((res) => res.json())
+              .then((data) => {
+                setTransactions(Array.isArray(data) ? data : []);
+              });
+          }}
+        />
       </div>
 
       {/* ------------------------------------------------------------------ */}

@@ -40,9 +40,35 @@ export async function GET(req: NextRequest) {
         : undefined,
     },
     orderBy: { firstName: "asc" },
+    include: {
+      studentFees: {
+        select: {
+          amountDue: true,
+          amountPaid: true,
+        },
+      },
+    },
   });
 
-  return NextResponse.json(students);
+  // Calculate fee aggregates for each student
+  const studentsWithFeeAggregates = students.map((student) => {
+    const totalDue = student.studentFees.reduce(
+      (sum, fee) => sum + Number(fee.amountDue),
+      0
+    );
+    const totalPaid = student.studentFees.reduce(
+      (sum, fee) => sum + Number(fee.amountPaid),
+      0
+    );
+    const { studentFees, ...rest } = student;
+    return {
+      ...rest,
+      amountPaid: totalPaid,
+      balanceDue: totalDue - totalPaid,
+    };
+  });
+
+  return NextResponse.json(studentsWithFeeAggregates);
 }
 
 export async function POST(req: NextRequest) {
