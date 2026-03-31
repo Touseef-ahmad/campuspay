@@ -10,30 +10,59 @@ const schema = z.object({
   date: z.string().optional(),
 });
 
+export async function GET(req: NextRequest) {
+  const auth = getAuthPayload(req);
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const transfers = await prisma.accountTransfer.findMany({
+    where: { instituteId: auth.instituteId },
+    include: { fromAccount: true, toAccount: true },
+    orderBy: { date: "desc" },
+  });
+
+  return NextResponse.json(transfers);
+}
+
 export async function POST(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await req.json();
     const data = schema.parse(body);
 
     if (data.fromAccountId === data.toAccountId) {
-      return NextResponse.json({ error: "Cannot transfer to the same account" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Cannot transfer to the same account" },
+        { status: 400 },
+      );
     }
 
     const from = await prisma.financialAccount.findFirst({
       where: { id: data.fromAccountId, instituteId: auth.instituteId },
     });
-    if (!from) return NextResponse.json({ error: "Source account not found" }, { status: 404 });
+    if (!from)
+      return NextResponse.json(
+        { error: "Source account not found" },
+        { status: 404 },
+      );
     if (Number(from.balance) < data.amount) {
-      return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Insufficient balance" },
+        { status: 400 },
+      );
     }
 
     const to = await prisma.financialAccount.findFirst({
       where: { id: data.toAccountId, instituteId: auth.instituteId },
     });
-    if (!to) return NextResponse.json({ error: "Destination account not found" }, { status: 404 });
+    if (!to)
+      return NextResponse.json(
+        { error: "Destination account not found" },
+        { status: 404 },
+      );
 
     const [transfer] = await prisma.$transaction([
       prisma.accountTransfer.create({
@@ -57,7 +86,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(transfer, { status: 201 });
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.issues }, { status: 400 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
