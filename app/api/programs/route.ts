@@ -8,8 +8,7 @@ const schema = z.object({
   title: z.string().min(1),
   department: z.string().optional(),
   credits: z.coerce.number().int().positive().optional(),
-  maxStudents: z.coerce.number().int().positive().optional(),
-  semester: z.string().optional(),
+  totalSemesters: z.coerce.number().int().positive().optional(),
   duration: z.string().optional(),
   status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
 });
@@ -19,13 +18,19 @@ export async function GET(req: NextRequest) {
   if (!auth?.instituteId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const courses = await prisma.course.findMany({
+  const programs = await prisma.program.findMany({
     where: { instituteId: auth.instituteId },
-    include: { _count: { select: { enrollments: true } } },
+    include: {
+      programOfferings: {
+        include: { term: true },
+        orderBy: { semesterNumber: "asc" },
+      },
+      _count: { select: { programOfferings: true } },
+    },
     orderBy: { title: "asc" },
   });
 
-  return NextResponse.json(courses);
+  return NextResponse.json(programs);
 }
 
 export async function POST(req: NextRequest) {
@@ -37,17 +42,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = schema.parse(body);
 
-    const course = await prisma.course.create({
+    const program = await prisma.program.create({
       data: { ...data, instituteId: auth.instituteId },
     });
 
-    return NextResponse.json(course, { status: 201 });
+    return NextResponse.json(program, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError)
       return NextResponse.json({ error: err.issues }, { status: 400 });
     if ((err as { code?: string }).code === "P2002") {
       return NextResponse.json(
-        { error: "Course code already exists" },
+        { error: "Program code already exists" },
         { status: 409 },
       );
     }
@@ -67,21 +72,24 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, ...rest } = body;
     if (!id)
-      return NextResponse.json({ error: "Missing course id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing program id" },
+        { status: 400 },
+      );
     const data = schema.parse(rest);
 
-    const course = await prisma.course.update({
+    const program = await prisma.program.update({
       where: { id, instituteId: auth.instituteId },
       data,
     });
 
-    return NextResponse.json(course);
+    return NextResponse.json(program);
   } catch (err) {
     if (err instanceof z.ZodError)
       return NextResponse.json({ error: err.issues }, { status: 400 });
     if ((err as { code?: string }).code === "P2002") {
       return NextResponse.json(
-        { error: "Course code already exists" },
+        { error: "Program code already exists" },
         { status: 409 },
       );
     }
@@ -101,9 +109,12 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id)
-      return NextResponse.json({ error: "Missing course id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing program id" },
+        { status: 400 },
+      );
 
-    await prisma.course.delete({
+    await prisma.program.delete({
       where: { id, instituteId: auth.instituteId },
     });
 

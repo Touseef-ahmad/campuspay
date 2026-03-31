@@ -24,7 +24,13 @@ export async function GET(
   const student = await prisma.student.findFirst({
     where: { id, instituteId: auth.instituteId },
     include: {
-      enrollments: { include: { course: true, term: true } },
+      enrollments: {
+        include: {
+          programOffering: {
+            include: { program: true, term: true },
+          },
+        },
+      },
       studentFees: {
         include: { fee: true, payments: true },
         orderBy: { createdAt: "desc" },

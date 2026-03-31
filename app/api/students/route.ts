@@ -17,7 +17,7 @@ const schema = z.object({
   academicYear: z.string().optional(),
   status: z.string().optional().default("active"),
   fees: z.array(feeSchema).optional(),
-  courseId: z.string().min(1, "Program is required"),
+  programId: z.string().min(1, "Program is required"),
 });
 
 export async function GET(req: NextRequest) {
@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { enrollmentDate, fees, courseId, ...rest } = schema.parse(body);
+    const { enrollmentDate, fees, programId, ...rest } = schema.parse(body);
 
-    // Verify course exists and belongs to institute
-    const course = await prisma.course.findFirst({
-      where: { id: courseId, instituteId },
+    // Verify program exists and belongs to institute
+    const program = await prisma.program.findFirst({
+      where: { id: programId, instituteId },
     });
-    if (!course) {
+    if (!program) {
       return NextResponse.json(
         { error: "Selected program not found" },
         { status: 400 },
@@ -109,23 +109,42 @@ export async function POST(req: NextRequest) {
 
     // Create student with fees and enrollment in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create the student with department from course
+      // Create the student with department from program
       const student = await tx.student.create({
         data: {
           ...rest,
           studentId,
-          department: course.department || rest.department,
+          department: program.department || rest.department,
           enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : undefined,
           instituteId,
         },
       });
 
-      // Create enrollment linking student to course/program
+      // Find or create a ProgramOffering for semester 1 (default for new enrollments)
+      let programOffering = await tx.programOffering.findFirst({
+        where: {
+          programId: program.id,
+          termId: term.id,
+          semesterNumber: 1,
+        },
+      });
+
+      if (!programOffering) {
+        programOffering = await tx.programOffering.create({
+          data: {
+            programId: program.id,
+            termId: term.id,
+            semesterNumber: 1,
+            status: "ACTIVE",
+          },
+        });
+      }
+
+      // Create enrollment linking student to program offering
       await tx.enrollment.create({
         data: {
           studentId: student.id,
-          courseId: course.id,
-          termId: term.id,
+          programOfferingId: programOffering.id,
         },
       });
 

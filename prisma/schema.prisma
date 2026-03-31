@@ -14,15 +14,15 @@ model Institute {
   address   String?
   createdAt DateTime @default(now())
 
-  users            User[]
-  academicTerms    AcademicTerm[]
-  courses          Course[]
-  students         Student[]
-  fees             Fee[]
+  users             User[]
+  academicTerms     AcademicTerm[]
+  programs          Program[]
+  students          Student[]
+  fees              Fee[]
   financialAccounts FinancialAccount[]
   expenseCategories ExpenseCategory[]
-  expenses         Expense[]
-  accountTransfers AccountTransfer[]
+  expenses          Expense[]
+  accountTransfers  AccountTransfer[]
 }
 
 model Role {
@@ -65,40 +65,59 @@ model AuditLog {
 
 model AcademicTerm {
   id        String   @id @default(cuid())
-  name      String
+  name      String                        // "Fall 2026", "Spring 2027"
   startDate DateTime
   endDate   DateTime
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])
 
-  enrollments  Enrollment[]
-  studentFees  StudentFee[]
+  programOfferings ProgramOffering[]
+  studentFees      StudentFee[]
 }
 
-enum CourseStatus {
+enum ProgramStatus {
   ACTIVE
   INACTIVE
   ARCHIVED
 }
 
-model Course {
-  id          String       @id @default(cuid())
-  code        String
-  title       String
-  department  String?
-  credits     Int?
-  maxStudents Int?
-  semester    String?
-  duration    String?
-  status      CourseStatus @default(ACTIVE)
+model Program {
+  id             String        @id @default(cuid())
+  code           String                    // "BSCS", "MCS", "MBA"
+  title          String                    // "Computer Science"
+  department     String?
+  credits        Int?                      // Total program credits
+  totalSemesters Int?                      // 8 for 4-year degree
+  duration       String?                   // "4 years"
+  status         ProgramStatus @default(ACTIVE)
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])
 
-  enrollments Enrollment[]
+  programOfferings ProgramOffering[]
 
   @@unique([instituteId, code])
+}
+
+// Links a Program to an AcademicTerm with a semester number
+// Example: "BSCS Fall 2026 3rd Semester"
+model ProgramOffering {
+  id             String        @id @default(cuid())
+  semesterNumber Int                       // 1, 2, 3, 4, 5, 6, 7, 8
+  status         ProgramStatus @default(ACTIVE)
+  maxStudents    Int?
+  createdAt      DateTime      @default(now())
+
+  programId String
+  program   Program @relation(fields: [programId], references: [id])
+
+  termId String
+  term   AcademicTerm @relation(fields: [termId], references: [id])
+
+  enrollments Enrollment[]
+
+  @@unique([programId, termId, semesterNumber])
 }
 
 model Student {
@@ -125,13 +144,10 @@ model Enrollment {
   studentId String
   student   Student @relation(fields: [studentId], references: [id])
 
-  courseId String
-  course   Course @relation(fields: [courseId], references: [id])
+  programOfferingId String
+  programOffering   ProgramOffering @relation(fields: [programOfferingId], references: [id])
 
-  termId String
-  term   AcademicTerm @relation(fields: [termId], references: [id])
-
-  @@unique([studentId, courseId, termId])
+  @@unique([studentId, programOfferingId])
 }
 
 // ─── Fee Engine ───────────────────────────────────────────────────

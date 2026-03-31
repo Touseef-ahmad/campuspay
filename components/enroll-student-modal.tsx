@@ -26,7 +26,7 @@ interface FeeItem {
   type: string;
 }
 
-interface Course {
+interface Program {
   id: string;
   code: string;
   title: string;
@@ -66,20 +66,20 @@ export function EnrollStudentModal({
   const [fees, setFees] = useState<FeeItem[]>(DEFAULT_FEES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
 
-  // Fetch courses when modal opens
+  // Fetch programs when modal opens
   useEffect(() => {
     if (open) {
-      setLoadingCourses(true);
-      fetch("/api/courses")
+      setLoadingPrograms(true);
+      fetch("/api/programs")
         .then((res) => res.json())
         .then((data) => {
-          setCourses(Array.isArray(data) ? data : []);
+          setPrograms(Array.isArray(data) ? data : []);
         })
-        .catch(() => setCourses([]))
-        .finally(() => setLoadingCourses(false));
+        .catch(() => setPrograms([]))
+        .finally(() => setLoadingPrograms(false));
     }
   }, [open]);
 
@@ -156,7 +156,7 @@ export function EnrollStudentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          courseId: selectedProgram,
+          programId: selectedProgram,
           fees: validFees.map((f) => ({
             name: f.name,
             amount: parseFloat(f.amount),
@@ -338,21 +338,21 @@ export function EnrollStudentModal({
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
-                      loadingCourses
+                      loadingPrograms
                         ? "Loading programs..."
                         : "Select a program"
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.length === 0 ? (
+                  {programs.length === 0 ? (
                     <SelectItem value="_empty" disabled>
                       No programs available
                     </SelectItem>
                   ) : (
-                    courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.title} ({course.code})
+                    programs.map((program) => (
+                      <SelectItem key={program.id} value={program.id}>
+                        {program.title} ({program.code})
                       </SelectItem>
                     ))
                   )}
