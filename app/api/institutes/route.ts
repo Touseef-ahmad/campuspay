@@ -8,36 +8,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Only school admins and system admins can list users
+  // Only system admins can list all institutes
   const caller = await prisma.user.findUnique({
     where: { id: auth.userId },
-    include: { role: true },
   });
-  if (!caller) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const isSchoolAdmin = caller.role?.name === "school_admin";
-  if (!caller.isSystemAdmin && !isSchoolAdmin) {
+  if (!caller?.isSystemAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // System admins can see all users, school admins only see their institute
-  const whereClause = caller.isSystemAdmin
-    ? {}
-    : { instituteId: auth.instituteId };
+  const url = new URL(req.url);
+  const search = url.searchParams.get("search") || "";
 
-  const users = await prisma.user.findMany({
-    where: whereClause,
+  const institutes = await prisma.institute.findMany({
+    where: search
+      ? {
+          name: { contains: search, mode: "insensitive" },
+        }
+      : {},
     select: {
       id: true,
+      name: true,
       email: true,
+      address: true,
+      type: true,
       isApproved: true,
       createdAt: true,
-      role: { select: { name: true } },
+      _count: {
+        select: { users: true },
+      },
     },
     orderBy: [{ isApproved: "asc" }, { createdAt: "desc" }],
   });
 
-  return NextResponse.json(users);
+  return NextResponse.json(institutes);
 }

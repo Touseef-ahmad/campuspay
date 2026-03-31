@@ -41,7 +41,12 @@ export async function POST(req: NextRequest) {
       // Create institute + School Admin role + user in a transaction
       const result = await prisma.$transaction(async (tx) => {
         const institute = await tx.institute.create({
-          data: { name: data.instituteName, address: data.address },
+          data: {
+            name: data.instituteName,
+            address: data.address,
+            email: data.email,
+            isApproved: false, // Institute needs approval from system admin
+          },
         });
 
         let role = await tx.role.findUnique({
@@ -53,13 +58,14 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // User who creates the institute is auto-approved
         const user = await tx.user.create({
           data: {
             email: data.email,
             passwordHash,
             instituteId: institute.id,
             roleId: role.id,
-            isApproved: false,
+            isApproved: true,
           },
         });
 
@@ -89,7 +95,7 @@ export async function POST(req: NextRequest) {
         email: result.user.email,
         instituteId: result.institute.id,
         isSystemAdmin: false,
-        isApproved: false,
+        isApproved: true, // User is approved, institute approval is separate
         roleId: result.role.id,
       });
 
@@ -99,8 +105,12 @@ export async function POST(req: NextRequest) {
           user: {
             id: result.user.id,
             email: result.user.email,
-            isApproved: false,
+            isApproved: true,
             instituteId: result.institute.id,
+          },
+          institute: {
+            id: result.institute.id,
+            isApproved: false, // Institute needs approval
           },
         },
         { status: 201 },

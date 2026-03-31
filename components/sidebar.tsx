@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -10,20 +11,46 @@ import {
   LogOut,
   GraduationCap,
   ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+// Regular user nav items (school admins, staff)
+const userNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/programs", label: "Programs", icon: BookOpen },
   { href: "/accounts", label: "Accounts", icon: Wallet },
+];
+
+// System admin nav items
+const adminNavItems = [
   { href: "/users", label: "Users", icon: ShieldCheck },
+  { href: "/institutes", label: "Institutes", icon: Building2 },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [isSystemAdmin, setIsSystemAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Check if user is system admin from cookie/session
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setIsSystemAdmin(data.isSystemAdmin ?? false);
+        }
+      } catch {
+        setIsSystemAdmin(false);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  const navItems = isSystemAdmin ? adminNavItems : userNavItems;
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });

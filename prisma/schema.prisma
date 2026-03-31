@@ -9,10 +9,13 @@ datasource db {
 // ─── Administration & Security ────────────────────────────────────
 
 model Institute {
-  id        String   @id @default(cuid())
-  name      String
-  address   String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  name       String
+  address    String?
+  email      String?
+  type       String?  // e.g., "University", "College", "School"
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   users             User[]
   academicTerms     AcademicTerm[]
