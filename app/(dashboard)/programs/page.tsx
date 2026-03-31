@@ -103,6 +103,15 @@ function statusBadgeClass(status: ProgramStatus): string {
   return "bg-gray-100 text-gray-500 border border-gray-200 font-semibold text-xs px-2.5 py-1 rounded-full";
 }
 
+const semesterTypes = ["Fall", "Spring", "Summer"] as const;
+
+const emptySemesterForm = {
+  type: "" as string,
+  year: new Date().getFullYear().toString(),
+  startDate: "",
+  endDate: "",
+};
+
 export default function ProgramsPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,6 +120,12 @@ export default function ProgramsPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Semester modal state
+  const [semesterOpen, setSemesterOpen] = useState(false);
+  const [semesterForm, setSemesterForm] = useState(emptySemesterForm);
+  const [semesterSaving, setSemesterSaving] = useState(false);
+  const [semesterError, setSemesterError] = useState("");
 
   const [academicTerms, setAcademicTerms] = useState<AcademicTerm[]>([]);
   const [filterDepartment, setFilterDepartment] = useState("all");
@@ -198,6 +213,54 @@ export default function ProgramsPage() {
     if (res.ok) load();
   }
 
+  // Semester form handlers
+  function setSemesterField(field: string, value: string) {
+    setSemesterForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSemesterSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSemesterError("");
+
+    if (
+      !semesterForm.type ||
+      !semesterForm.year ||
+      !semesterForm.startDate ||
+      !semesterForm.endDate
+    ) {
+      setSemesterError("All fields are required");
+      return;
+    }
+
+    setSemesterSaving(true);
+    try {
+      const name = `${semesterForm.type} ${semesterForm.year}`;
+      const res = await fetch("/api/academic-terms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          startDate: semesterForm.startDate,
+          endDate: semesterForm.endDate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSemesterError(
+          typeof data.error === "string"
+            ? data.error
+            : "Failed to create semester",
+        );
+        return;
+      }
+      setSemesterOpen(false);
+      setSemesterForm(emptySemesterForm);
+      load();
+    } finally {
+      setSemesterSaving(false);
+    }
+  }
+
   function setField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -247,15 +310,122 @@ export default function ProgramsPage() {
             New Billing cycle
           </Button>
 
-          {/* TODO: Implement semester/academic term creation modal and API
-              endpoint POST /api/academic-terms once AcademicTerm schema is defined. */}
-          <Button
-            variant="outline"
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
-          >
-            <Calendar className="mr-2 h-4 w-4" />
-            Create Semester
-          </Button>
+          <Dialog open={semesterOpen} onOpenChange={setSemesterOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setSemesterForm(emptySemesterForm);
+                  setSemesterError("");
+                }}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Create Semester
+              </Button>
+            </DialogTrigger>
+
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Semester</DialogTitle>
+              </DialogHeader>
+
+              <form onSubmit={handleSemesterSubmit} className="space-y-4 pt-2">
+                {/* Semester Type */}
+                <div className="space-y-2">
+                  <Label>
+                    Select Type <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={semesterForm.type}
+                    onValueChange={(v) => setSemesterField("type", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Semester Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {semesterTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Year */}
+                <div className="space-y-2">
+                  <Label>
+                    Select Year <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={2020}
+                      max={2050}
+                      value={semesterForm.year}
+                      onChange={(e) => setSemesterField("year", e.target.value)}
+                      placeholder="2026"
+                    />
+                    <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Start Date */}
+                <div className="space-y-2">
+                  <Label>
+                    Start Date <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      value={semesterForm.startDate}
+                      onChange={(e) =>
+                        setSemesterField("startDate", e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* End Date */}
+                <div className="space-y-2">
+                  <Label>
+                    End Date <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      value={semesterForm.endDate}
+                      onChange={(e) =>
+                        setSemesterField("endDate", e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+
+                {semesterError && (
+                  <p className="text-sm text-destructive">{semesterError}</p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSemesterOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={semesterSaving}
+                    className="bg-[#007BFF] hover:bg-blue-600"
+                  >
+                    {semesterSaving ? "Creating..." : "Create Semester"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
