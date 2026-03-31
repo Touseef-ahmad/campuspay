@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreatableSelect } from "@/components/ui/creatable-select";
 import { Plus, Wallet, CalendarIcon } from "lucide-react";
 
 interface Account {
@@ -352,23 +353,35 @@ export default function AccountsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Category</Label>
-                  <Select
+                  <CreatableSelect
+                    options={categories.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                    }))}
                     value={expForm.categoryId}
-                    onValueChange={(v) =>
+                    onChange={(v) =>
                       setExpForm((p) => ({ ...p, categoryId: v }))
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onCreate={async (name) => {
+                      try {
+                        const res = await fetch("/api/expense-categories", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name }),
+                        });
+                        if (!res.ok) return null;
+                        const newCategory = await res.json();
+                        setCategories((prev) => [...prev, newCategory]);
+                        return {
+                          value: newCategory.id,
+                          label: newCategory.name,
+                        };
+                      } catch {
+                        return null;
+                      }
+                    }}
+                    placeholder="Select or create category"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Deduct from Account</Label>
