@@ -7,7 +7,7 @@ const schema = z.object({
   feeId: z.string(),
   amountDue: z.number().positive(),
   dueDate: z.string(),
-  termId: z.string().optional(),
+  programOfferingId: z.string().optional(),
 });
 
 export async function GET(
@@ -32,6 +32,12 @@ export async function GET(
     where: { studentId },
     include: {
       fee: true,
+      programOffering: {
+        include: {
+          program: true,
+          term: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -51,6 +57,15 @@ export async function GET(
       status: sf.status,
       dueDate: sf.dueDate,
       createdAt: sf.createdAt,
+      programOffering: sf.programOffering
+        ? {
+            id: sf.programOffering.id,
+            semesterNumber: sf.programOffering.semesterNumber,
+            programCode: sf.programOffering.program.code,
+            programTitle: sf.programOffering.program.title,
+            termName: sf.programOffering.term.name,
+          }
+        : null,
     };
   });
 
@@ -92,9 +107,14 @@ export async function POST(
         feeId: data.feeId,
         amountDue: data.amountDue,
         dueDate: new Date(data.dueDate),
-        termId: data.termId ?? null,
+        programOfferingId: data.programOfferingId ?? null,
       },
-      include: { fee: true },
+      include: {
+        fee: true,
+        programOffering: {
+          include: { program: true, term: true },
+        },
+      },
     });
 
     return NextResponse.json(studentFee, { status: 201 });

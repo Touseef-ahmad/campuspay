@@ -33,20 +33,40 @@ interface Program {
   department: string | null;
 }
 
+interface AcademicTerm {
+  id: string;
+  name: string;
+}
+
+interface ProgramOffering {
+  id: string;
+  semesterNumber: number;
+  status: string;
+  program: Program;
+  term: AcademicTerm;
+}
+
 interface EnrollStudentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
 
+const FEE_TYPES = [
+  { value: "one_time", label: "One Time" },
+  { value: "per_month", label: "Per Month" },
+  { value: "per_semester", label: "Per Semester" },
+  { value: "per_year", label: "Per Year" },
+] as const;
+
 // Default pre-populated fees
 const DEFAULT_FEES: FeeItem[] = [
-  { id: "tuition", name: "Tuition Fee", amount: "4500", type: "tuition" },
+  { id: "tuition", name: "Tuition Fee", amount: "4500", type: "per_semester" },
   {
     id: "registration",
     name: "Registration Fee",
     amount: "500",
-    type: "registration",
+    type: "one_time",
   },
 ];
 
@@ -62,26 +82,39 @@ export function EnrollStudentModal({
     enrollmentDate: "",
     academicYear: "",
   });
-  const [selectedProgram, setSelectedProgram] = useState("");
+  const [selectedProgramOffering, setSelectedProgramOffering] = useState("");
   const [fees, setFees] = useState<FeeItem[]>(DEFAULT_FEES);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [loadingPrograms, setLoadingPrograms] = useState(false);
+  const [programOfferings, setProgramOfferings] = useState<ProgramOffering[]>(
+    [],
+  );
+  const [loadingOfferings, setLoadingOfferings] = useState(false);
 
-  // Fetch programs when modal opens
+  // Fetch program offerings when modal opens
   useEffect(() => {
     if (open) {
-      setLoadingPrograms(true);
-      fetch("/api/programs")
+      setLoadingOfferings(true);
+      fetch("/api/program-offerings")
         .then((res) => res.json())
         .then((data) => {
-          setPrograms(Array.isArray(data) ? data : []);
+          setProgramOfferings(Array.isArray(data) ? data : []);
         })
-        .catch(() => setPrograms([]))
-        .finally(() => setLoadingPrograms(false));
+        .catch(() => setProgramOfferings([]))
+        .finally(() => setLoadingOfferings(false));
     }
   }, [open]);
+
+  // Group program offerings by program for better UI
+  const groupedOfferings = useMemo(() => {
+    const groups: Record<string, ProgramOffering[]> = {};
+    programOfferings.forEach((po) => {
+      const key = po.program.id;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(po);
+    });
+    return groups;
+  }, [programOfferings]);
 
   // Calculate total
   const totalAmount = useMemo(() => {
@@ -107,7 +140,7 @@ export function EnrollStudentModal({
       academicYear: "",
     });
     setStep(1);
-    setSelectedProgram("");
+    setSelectedProgramOffering("");
     setFees([...DEFAULT_FEES]);
     setError("");
   }
@@ -120,7 +153,7 @@ export function EnrollStudentModal({
   function addFee() {
     setFees((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), name: "", amount: "", type: "custom" },
+      { id: crypto.randomUUID(), name: "", amount: "", type: "one_time" },
     ]);
   }
 
@@ -138,9 +171,9 @@ export function EnrollStudentModal({
     e.preventDefault();
     setError("");
 
-    // Validate program selection
-    if (!selectedProgram) {
-      setError("Please select a program");
+    // Validate program offering selection
+    if (!selectedProgramOffering) {
+      setError("Please select a class (program offering)");
       return;
     }
 
@@ -156,7 +189,7 @@ export function EnrollStudentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          programId: selectedProgram,
+          programOfferingId: selectedProgramOffering,
           fees: validFees.map((f) => ({
             name: f.name,
             amount: parseFloat(f.amount),
@@ -235,7 +268,7 @@ export function EnrollStudentModal({
                   step === 2 ? "text-gray-900" : "text-gray-500"
                 }`}
               >
-                Program & Fees
+                Class & Fees
               </span>
             </div>
           </div>
@@ -288,13 +321,26 @@ export function EnrollStudentModal({
               </div>
               <div className="space-y-2">
                 <Label>Academic Year</Label>
-                <Input
-                  type="date"
+                <Select
                   value={form.academicYear}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, academicYear: e.target.value }))
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, academicYear: v }))
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const year = new Date().getFullYear() - 2 + i;
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -324,40 +370,54 @@ export function EnrollStudentModal({
           </div>
         )}
 
-        {/* Step 2: Program & Fees */}
+        {/* Step 2: Class & Fees */}
         {step === 2 && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>
-                Select Program <span className="text-red-500">*</span>
+                Select Class <span className="text-red-500">*</span>
               </Label>
               <Select
-                value={selectedProgram}
-                onValueChange={setSelectedProgram}
+                value={selectedProgramOffering}
+                onValueChange={setSelectedProgramOffering}
               >
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
-                      loadingPrograms
-                        ? "Loading programs..."
-                        : "Select a program"
+                      loadingOfferings ? "Loading classes..." : "Select a class"
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {programs.length === 0 ? (
+                  {programOfferings.length === 0 ? (
                     <SelectItem value="_empty" disabled>
-                      No programs available
+                      No classes available. Create a class first.
                     </SelectItem>
                   ) : (
-                    programs.map((program) => (
-                      <SelectItem key={program.id} value={program.id}>
-                        {program.title} ({program.code})
-                      </SelectItem>
-                    ))
+                    Object.entries(groupedOfferings).map(
+                      ([programId, offerings]) => (
+                        <div key={programId}>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            {offerings[0].program.title} (
+                            {offerings[0].program.code})
+                          </div>
+                          {offerings.map((po) => (
+                            <SelectItem key={po.id} value={po.id}>
+                              {po.term.name} - Semester {po.semesterNumber}
+                            </SelectItem>
+                          ))}
+                        </div>
+                      ),
+                    )
                   )}
                 </SelectContent>
               </Select>
+              {programOfferings.length === 0 && !loadingOfferings && (
+                <p className="text-xs text-muted-foreground">
+                  No classes found. Add a class to a program first from the
+                  Programs page.
+                </p>
+              )}
             </div>
 
             {/* Fees Section */}
@@ -414,6 +474,24 @@ export function EnrollStudentModal({
                           placeholder="0.00"
                           className="h-9"
                         />
+                      </div>
+                      <div className="w-36 space-y-1">
+                        <Label className="text-xs">Type</Label>
+                        <Select
+                          value={fee.type}
+                          onValueChange={(v) => updateFee(fee.id, "type", v)}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FEE_TYPES.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <Button
                         type="button"

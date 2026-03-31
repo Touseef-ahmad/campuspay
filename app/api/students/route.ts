@@ -17,7 +17,7 @@ const schema = z.object({
   academicYear: z.string().optional(),
   status: z.string().optional().default("active"),
   fees: z.array(feeSchema).optional(),
-  programId: z.string().min(1, "Program is required"),
+  programOfferingId: z.string().min(1, "Class selection is required"),
 });
 
 export async function GET(req: NextRequest) {
@@ -54,15 +54,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { enrollmentDate, fees, programId, ...rest } = schema.parse(body);
+    const { enrollmentDate, fees, programOfferingId, ...rest } =
+      schema.parse(body);
 
-    // Verify program exists and belongs to institute
-    const program = await prisma.program.findFirst({
-      where: { id: programId, instituteId },
+    // Verify program offering exists and belongs to institute
+    const programOffering = await prisma.programOffering.findFirst({
+      where: { id: programOfferingId },
+      include: { program: true, term: true },
     });
-    if (!program) {
+    if (
+      !programOffering ||
+      programOffering.program.instituteId !== instituteId
+    ) {
       return NextResponse.json(
-        { error: "Selected program not found" },
+        { error: "Selected class not found" },
         { status: 400 },
       );
     }
@@ -90,23 +95,6 @@ export async function POST(req: NextRequest) {
     }
     const studentId = `${prefix}${String(nextNumber).padStart(3, "0")}`;
 
-    // Find or create a default academic term for enrollment
-    let term = await prisma.academicTerm.findFirst({
-      where: { instituteId },
-      orderBy: { startDate: "desc" },
-    });
-    if (!term) {
-      // Create a default term if none exists
-      term = await prisma.academicTerm.create({
-        data: {
-          name: `${year} Academic Year`,
-          startDate: new Date(`${year}-01-01`),
-          endDate: new Date(`${year}-12-31`),
-          instituteId,
-        },
-      });
-    }
-
     // Create student with fees and enrollment in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the student with department from program
@@ -114,31 +102,11 @@ export async function POST(req: NextRequest) {
         data: {
           ...rest,
           studentId,
-          department: program.department || rest.department,
+          department: programOffering.program.department || rest.department,
           enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : undefined,
           instituteId,
         },
       });
-
-      // Find or create a ProgramOffering for semester 1 (default for new enrollments)
-      let programOffering = await tx.programOffering.findFirst({
-        where: {
-          programId: program.id,
-          termId: term.id,
-          semesterNumber: 1,
-        },
-      });
-
-      if (!programOffering) {
-        programOffering = await tx.programOffering.create({
-          data: {
-            programId: program.id,
-            termId: term.id,
-            semesterNumber: 1,
-            status: "ACTIVE",
-          },
-        });
-      }
 
       // Create enrollment linking student to program offering
       await tx.enrollment.create({
@@ -164,13 +132,13 @@ export async function POST(req: NextRequest) {
               data: {
                 name: feeData.name,
                 defaultAmount: feeData.amount,
-                type: feeData.type || "custom",
+                type: feeData.type || "one_time",
                 instituteId,
               },
             });
           }
 
-          // Create StudentFee record
+          // Create StudentFee record associated with the program offering
           await tx.studentFee.create({
             data: {
               studentId: student.id,
@@ -178,6 +146,7 @@ export async function POST(req: NextRequest) {
               amountDue: feeData.amount,
               dueDate: new Date(), // Default to today, can be customized
               status: "PENDING",
+              programOfferingId: programOffering.id,
             },
           });
         }

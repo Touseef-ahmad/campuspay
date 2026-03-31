@@ -4,7 +4,8 @@ import { getAuthPayload } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
@@ -14,7 +15,17 @@ export async function GET(req: NextRequest) {
       student: { instituteId: auth.instituteId },
       ...(status ? { status: status as "PENDING" | "PARTIAL" | "PAID" } : {}),
     },
-    include: { student: true, fee: true, payments: true },
+    include: {
+      student: true,
+      fee: true,
+      payments: true,
+      programOffering: {
+        include: {
+          program: true,
+          term: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 

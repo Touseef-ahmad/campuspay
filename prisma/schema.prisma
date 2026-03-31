@@ -76,7 +76,6 @@ model AcademicTerm {
   institute   Institute @relation(fields: [instituteId], references: [id])
 
   programOfferings ProgramOffering[]
-  studentFees      StudentFee[]
 }
 
 enum ProgramStatus {
@@ -119,6 +118,7 @@ model ProgramOffering {
   term   AcademicTerm @relation(fields: [termId], references: [id])
 
   enrollments Enrollment[]
+  studentFees StudentFee[]
 
   @@unique([programId, termId, semesterNumber])
 }
@@ -181,8 +181,8 @@ model StudentFee {
   feeId String
   fee   Fee @relation(fields: [feeId], references: [id])
 
-  termId String?
-  term   AcademicTerm? @relation(fields: [termId], references: [id])
+  programOfferingId String?
+  programOffering   ProgramOffering? @relation(fields: [programOfferingId], references: [id])
 
   payments PaymentTransaction[]
 }

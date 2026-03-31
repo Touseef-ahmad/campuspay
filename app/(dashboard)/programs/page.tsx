@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -11,14 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { CreateSemesterModal } from "@/components/create-semester-modal";
+import { ProgramModal, AddProgramButton } from "@/components/program-modal";
+import { AddClassModal } from "@/components/add-class-modal";
 
 type ProgramStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -50,20 +44,9 @@ interface Program {
   _count: { programOfferings: number };
 }
 
-const emptyForm = {
-  code: "",
-  title: "",
-  department: "",
-  credits: "",
-  totalSemesters: "",
-  duration: "",
-  status: "ACTIVE" as ProgramStatus,
-};
-
 // Dynamically generate semester tag colors based on term name
 function getSemesterTagColors(termName: string) {
   if (termName.toLowerCase().includes("fall")) {
-    // Alternate between blue and green for fall semesters
     const year = parseInt(termName.match(/\d{4}/)?.[0] || "0");
     if (year % 2 === 0) {
       return {
@@ -103,34 +86,19 @@ function statusBadgeClass(status: ProgramStatus): string {
   return "bg-gray-100 text-gray-500 border border-gray-200 font-semibold text-xs px-2.5 py-1 rounded-full";
 }
 
-const semesterTypes = ["Fall", "Spring", "Summer"] as const;
-
-const emptySemesterForm = {
-  type: "" as string,
-  year: new Date().getFullYear().toString(),
-  startDate: "",
-  endDate: "",
-};
-
 export default function ProgramsPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  // Semester modal state
-  const [semesterOpen, setSemesterOpen] = useState(false);
-  const [semesterForm, setSemesterForm] = useState(emptySemesterForm);
-  const [semesterSaving, setSemesterSaving] = useState(false);
-  const [semesterError, setSemesterError] = useState("");
-
   const [academicTerms, setAcademicTerms] = useState<AcademicTerm[]>([]);
+
+  // Filters
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [filterTerm, setFilterTerm] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+
+  // Edit modal state
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -149,62 +117,9 @@ export default function ProgramsPage() {
     load();
   }, []);
 
-  function openAdd() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setError("");
-    setOpen(true);
-  }
-
   function openEdit(p: Program) {
-    setEditingId(p.id);
-    setForm({
-      code: p.code,
-      title: p.title,
-      department: p.department ?? "",
-      credits: p.credits?.toString() ?? "",
-      totalSemesters: p.totalSemesters?.toString() ?? "",
-      duration: p.duration ?? "",
-      status: p.status,
-    });
-    setError("");
-    setOpen(true);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
-    try {
-      const payload: Record<string, unknown> = {
-        code: form.code,
-        title: form.title,
-        status: form.status,
-      };
-      if (form.department) payload.department = form.department;
-      if (form.credits) payload.credits = Number(form.credits);
-      if (form.totalSemesters)
-        payload.totalSemesters = Number(form.totalSemesters);
-      if (form.duration) payload.duration = form.duration;
-      if (editingId) payload.id = editingId;
-
-      const res = await fetch("/api/programs", {
-        method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Failed");
-        return;
-      }
-      setOpen(false);
-      setForm(emptyForm);
-      setEditingId(null);
-      load();
-    } finally {
-      setSaving(false);
-    }
+    setEditingProgram(p);
+    setEditModalOpen(true);
   }
 
   async function handleDelete(id: string) {
@@ -213,65 +128,12 @@ export default function ProgramsPage() {
     if (res.ok) load();
   }
 
-  // Semester form handlers
-  function setSemesterField(field: string, value: string) {
-    setSemesterForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  async function handleSemesterSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSemesterError("");
-
-    if (
-      !semesterForm.type ||
-      !semesterForm.year ||
-      !semesterForm.startDate ||
-      !semesterForm.endDate
-    ) {
-      setSemesterError("All fields are required");
-      return;
-    }
-
-    setSemesterSaving(true);
-    try {
-      const name = `${semesterForm.type} ${semesterForm.year}`;
-      const res = await fetch("/api/academic-terms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          startDate: semesterForm.startDate,
-          endDate: semesterForm.endDate,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSemesterError(
-          typeof data.error === "string"
-            ? data.error
-            : "Failed to create semester",
-        );
-        return;
-      }
-      setSemesterOpen(false);
-      setSemesterForm(emptySemesterForm);
-      load();
-    } finally {
-      setSemesterSaving(false);
-    }
-  }
-
-  function setField(field: string, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  // Derive unique departments from loaded data for the filter dropdown.
-  // TODO: Fetch from a dedicated /api/departments endpoint once available.
+  // Derive unique departments from loaded data
   const departments = Array.from(
     new Set(programs.map((p) => p.department).filter(Boolean)),
   ) as string[];
 
-  // Client-side filtering until server-side filter params are supported.
+  // Client-side filtering
   const filtered = programs.filter((p) => {
     if (filterDepartment !== "all" && p.department !== filterDepartment)
       return false;
@@ -300,8 +162,7 @@ export default function ProgramsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* TODO: Implement billing cycle creation modal and API endpoint
-              POST /api/billing-cycles once BillingCycle schema is defined. */}
+          {/* TODO: Implement billing cycle creation modal */}
           <Button
             variant="outline"
             className="border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -310,258 +171,13 @@ export default function ProgramsPage() {
             New Billing cycle
           </Button>
 
-          <Dialog open={semesterOpen} onOpenChange={setSemesterOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                onClick={() => {
-                  setSemesterForm(emptySemesterForm);
-                  setSemesterError("");
-                }}
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                Create Semester
-              </Button>
-            </DialogTrigger>
+          <CreateSemesterModal onCreated={load} />
 
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create Semester</DialogTitle>
-              </DialogHeader>
-
-              <form onSubmit={handleSemesterSubmit} className="space-y-4 pt-2">
-                {/* Semester Type */}
-                <div className="space-y-2">
-                  <Label>
-                    Select Type <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={semesterForm.type}
-                    onValueChange={(v) => setSemesterField("type", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Semester Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {semesterTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Year */}
-                <div className="space-y-2">
-                  <Label>
-                    Select Year <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      min={2020}
-                      max={2050}
-                      value={semesterForm.year}
-                      onChange={(e) => setSemesterField("year", e.target.value)}
-                      placeholder="2026"
-                    />
-                    <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Start Date */}
-                <div className="space-y-2">
-                  <Label>
-                    Start Date <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={semesterForm.startDate}
-                      onChange={(e) =>
-                        setSemesterField("startDate", e.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* End Date */}
-                <div className="space-y-2">
-                  <Label>
-                    End Date <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={semesterForm.endDate}
-                      onChange={(e) =>
-                        setSemesterField("endDate", e.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-
-                {semesterError && (
-                  <p className="text-sm text-destructive">{semesterError}</p>
-                )}
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setSemesterOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={semesterSaving}
-                    className="bg-[#007BFF] hover:bg-blue-600"
-                  >
-                    {semesterSaving ? "Creating..." : "Create Semester"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={openAdd}
-                className="bg-[#007BFF] hover:bg-blue-600 text-white"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add New Program
-              </Button>
-            </DialogTrigger>
-
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingId ? "Edit Program" : "Add New Program"}
-                </DialogTitle>
-              </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-                {/* Code + Title */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Program Code</Label>
-                    <Input
-                      value={form.code}
-                      onChange={(e) =>
-                        setField("code", e.target.value.toUpperCase())
-                      }
-                      required
-                      placeholder="CS405"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Program Title</Label>
-                    <Input
-                      value={form.title}
-                      onChange={(e) => setField("title", e.target.value)}
-                      required
-                      placeholder="Computer Science"
-                    />
-                  </div>
-                </div>
-
-                {/* Department */}
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Input
-                    value={form.department}
-                    onChange={(e) => setField("department", e.target.value)}
-                    placeholder="Department of Computer Science"
-                  />
-                </div>
-
-                {/* Credits + Total Semesters */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Total Credits</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={form.credits}
-                      onChange={(e) => setField("credits", e.target.value)}
-                      placeholder="140"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Total Semesters</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={form.totalSemesters}
-                      onChange={(e) =>
-                        setField("totalSemesters", e.target.value)
-                      }
-                      placeholder="8"
-                    />
-                  </div>
-                </div>
-
-                {/* Duration */}
-                <div className="space-y-2">
-                  <Label>Duration</Label>
-                  <Input
-                    value={form.duration}
-                    onChange={(e) => setField("duration", e.target.value)}
-                    placeholder="4 years"
-                  />
-                </div>
-
-                {/* Status */}
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(v) => setField("status", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="INACTIVE">Inactive</SelectItem>
-                      <SelectItem value="ARCHIVED">Archived</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {error && <p className="text-sm text-destructive">{error}</p>}
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={saving}>
-                    {saving
-                      ? "Saving…"
-                      : editingId
-                        ? "Update Program"
-                        : "Add Program"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <AddProgramButton onSaved={load} />
         </div>
       </div>
 
       {/* ── Filters Bar ─────────────────────────────────────────── */}
-      {/* TODO: Pass filter state as query params to /api/programs once the
-          route supports server-side filtering (department, term, status). */}
       <div className="flex flex-wrap items-center gap-6 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
         {/* Department filter */}
         <div className="flex items-center gap-2">
@@ -693,18 +309,14 @@ export default function ProgramsPage() {
               {/* Divider */}
               <hr className="mx-5 mt-4 border-gray-100" />
 
-              {/* Card Footer: Add Semester button + Edit/Delete icons */}
+              {/* Card Footer: Add Class button + Edit/Delete icons */}
               <div className="flex items-center justify-between p-5 pt-4">
-                {/* TODO: Implement "Add Semester" modal to assign existing academic
-                    terms to this program via POST /api/program-offerings */}
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="bg-[#007BFF] hover:bg-blue-600 text-white text-xs"
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Add Semester
-                </Button>
+                <AddClassModal
+                  programId={p.id}
+                  programCode={p.code}
+                  totalSemesters={p.totalSemesters}
+                  onCreated={load}
+                />
 
                 <div className="flex items-center gap-1">
                   <button
@@ -727,6 +339,14 @@ export default function ProgramsPage() {
           ))}
         </div>
       )}
+
+      {/* Edit Program Modal */}
+      <ProgramModal
+        program={editingProgram}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onSaved={load}
+      />
     </div>
   );
 }
