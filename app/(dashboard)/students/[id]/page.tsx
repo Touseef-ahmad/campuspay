@@ -45,6 +45,7 @@ import {
   Clock,
 } from "lucide-react";
 import Link from "next/link";
+import { StudentFeeModal } from "@/components/student-fee-modal";
 
 interface StudentDetail {
   id: string;
@@ -62,7 +63,9 @@ interface StudentDetail {
   }[];
   studentFees: {
     id: string;
+    feeId: string;
     amountDue: number;
+    amountPaid: number;
     status: string;
     dueDate: string;
     fee: { name: string };
@@ -86,19 +89,14 @@ export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [fees, setFees] = useState<
-    { id: string; name: string; defaultAmount: number }[]
+    { id: string; name: string; defaultAmount: number; type: string }[]
   >([]);
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Apply fee dialog
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyForm, setApplyForm] = useState({
-    feeId: "",
-    amountDue: "",
-    dueDate: "",
-  });
-  const [applySaving, setApplySaving] = useState(false);
+  // Add fee modal state
+  const [addFeeOpen, setAddFeeOpen] = useState(false);
+  const [editFeeOpen, setEditFeeOpen] = useState(false);
 
   // Collect payment dialog
   const [payOpen, setPayOpen] = useState(false);
@@ -141,23 +139,6 @@ export default function StudentDetailPage() {
       cancelled = true;
     };
   }, [id, refreshKey]);
-
-  async function handleApplyFee(e: React.FormEvent) {
-    e.preventDefault();
-    setApplySaving(true);
-    await fetch(`/api/students/${id}/fees`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...applyForm,
-        amountDue: Number(applyForm.amountDue),
-      }),
-    });
-    setApplyOpen(false);
-    setApplyForm({ feeId: "", amountDue: "", dueDate: "" });
-    refresh();
-    setApplySaving(false);
-  }
 
   async function handleCollectPayment(e: React.FormEvent) {
     e.preventDefault();
@@ -400,91 +381,27 @@ export default function StudentDetailPage() {
             </div>
             {/* Apply fee / collect payment dialogs */}
             <div className="flex gap-1">
-              <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                  >
-                    <PlusCircle className="mr-1 h-3.5 w-3.5" />
-                    Apply Fee
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Apply Fee</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleApplyFee} className="space-y-4 pt-2">
-                    <div className="space-y-2">
-                      <Label>Fee Template</Label>
-                      <Select
-                        value={applyForm.feeId}
-                        onValueChange={(v) => {
-                          const fee = fees.find((f) => f.id === v);
-                          setApplyForm((p) => ({
-                            ...p,
-                            feeId: v,
-                            amountDue: fee ? String(fee.defaultAmount) : "",
-                          }));
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select fee" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fees.map((f) => (
-                            <SelectItem key={f.id} value={f.id}>
-                              {f.name} — {fmt(f.defaultAmount)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Amount Due</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={applyForm.amountDue}
-                        onChange={(e) =>
-                          setApplyForm((p) => ({
-                            ...p,
-                            amountDue: e.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Due Date</Label>
-                      <Input
-                        type="date"
-                        value={applyForm.dueDate}
-                        onChange={(e) =>
-                          setApplyForm((p) => ({
-                            ...p,
-                            dueDate: e.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setApplyOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={applySaving}>
-                        {applySaving ? "Saving…" : "Apply Fee"}
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setAddFeeOpen(true)}
+              >
+                <PlusCircle className="mr-1 h-3.5 w-3.5" />
+                Add Fee
+              </Button>
+
+              {student.studentFees.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setEditFeeOpen(true)}
+                >
+                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                  Edit
+                </Button>
+              )}
 
               <Dialog open={payOpen} onOpenChange={setPayOpen}>
                 <DialogTrigger asChild>
@@ -783,6 +700,43 @@ export default function StudentDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Fee Modal */}
+      <StudentFeeModal
+        open={addFeeOpen}
+        onOpenChange={setAddFeeOpen}
+        student={{
+          id: student.id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          studentId: student.studentId,
+        }}
+        feeTemplates={fees}
+        mode="add"
+        onSuccess={refresh}
+      />
+
+      {/* Edit Fees Modal */}
+      <StudentFeeModal
+        open={editFeeOpen}
+        onOpenChange={setEditFeeOpen}
+        student={{
+          id: student.id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          studentId: student.studentId,
+        }}
+        feeTemplates={fees}
+        mode="edit"
+        existingFees={student.studentFees.map((sf) => ({
+          id: sf.id,
+          feeId: sf.feeId,
+          amountDue: Number(sf.amountDue),
+          amountPaid: Number(sf.amountPaid),
+          fee: sf.fee,
+        }))}
+        onSuccess={refresh}
+      />
     </div>
   );
 }
