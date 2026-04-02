@@ -159,7 +159,7 @@ model Fee {
   id            String  @id @default(cuid())
   name          String
   defaultAmount Decimal @db.Decimal(12, 2)
-  type          String
+  type          String  // "one_time", "per_semester", "per_month", "per_year"
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])

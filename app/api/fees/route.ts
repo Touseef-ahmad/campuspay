@@ -6,12 +6,13 @@ import { getAuthPayload } from "@/lib/auth";
 const schema = z.object({
   name: z.string().min(1),
   defaultAmount: z.number().positive(),
-  type: z.string().min(1),
+  type: z.enum(["one_time", "per_semester", "per_month", "per_year"]),
 });
 
 export async function GET(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const fees = await prisma.fee.findMany({
     where: { instituteId: auth.instituteId },
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const auth = getAuthPayload(req);
-  if (!auth?.instituteId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await req.json();
@@ -35,7 +37,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(fee, { status: 201 });
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.issues }, { status: 400 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

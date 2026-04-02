@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -9,10 +8,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { CreateSemesterModal } from "@/components/create-semester-modal";
 import { ProgramModal, AddProgramButton } from "@/components/program-modal";
 import { AddClassModal } from "@/components/add-class-modal";
+import { DeleteProgramModal } from "@/components/delete-program-modal";
+import { InitializeBillingModal } from "@/components/initialize-billing-modal";
 
 type ProgramStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -100,6 +101,10 @@ export default function ProgramsPage() {
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // Delete modal state
+  const [deletingProgram, setDeletingProgram] = useState<Program | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
   async function load() {
     setLoading(true);
     const [programsRes, termsRes] = await Promise.all([
@@ -122,10 +127,9 @@ export default function ProgramsPage() {
     setEditModalOpen(true);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this program?")) return;
-    const res = await fetch(`/api/programs?id=${id}`, { method: "DELETE" });
-    if (res.ok) load();
+  function openDelete(p: Program) {
+    setDeletingProgram(p);
+    setDeleteModalOpen(true);
   }
 
   // Derive unique departments from loaded data
@@ -162,14 +166,7 @@ export default function ProgramsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* TODO: Implement billing cycle creation modal */}
-          <Button
-            variant="outline"
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Billing cycle
-          </Button>
+          <InitializeBillingModal onInitialized={load} />
 
           <CreateSemesterModal onCreated={load} />
 
@@ -327,7 +324,7 @@ export default function ProgramsPage() {
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(p.id)}
+                    onClick={() => openDelete(p)}
                     className="rounded-md p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                     title="Delete program"
                   >
@@ -346,6 +343,14 @@ export default function ProgramsPage() {
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         onSaved={load}
+      />
+
+      {/* Delete Program Modal */}
+      <DeleteProgramModal
+        program={deletingProgram}
+        open={deleteModalOpen}
+        onOpenChange={setDeleteModalOpen}
+        onDeleted={load}
       />
     </div>
   );

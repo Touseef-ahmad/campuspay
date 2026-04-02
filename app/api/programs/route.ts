@@ -18,6 +18,49 @@ export async function GET(req: NextRequest) {
   if (!auth?.instituteId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  const impact = searchParams.get("impact");
+
+  // If requesting impact data for a specific program
+  if (id && impact === "true") {
+    const program = await prisma.program.findFirst({
+      where: { id, instituteId: auth.instituteId },
+      include: {
+        programOfferings: {
+          include: {
+            _count: {
+              select: {
+                enrollments: true,
+                studentFees: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!program) {
+      return NextResponse.json({ error: "Program not found" }, { status: 404 });
+    }
+
+    // Calculate totals across all program offerings
+    const enrolledStudents = program.programOfferings.reduce(
+      (sum, po) => sum + po._count.enrollments,
+      0,
+    );
+    const studentFees = program.programOfferings.reduce(
+      (sum, po) => sum + po._count.studentFees,
+      0,
+    );
+
+    return NextResponse.json({
+      enrolledStudents,
+      programOfferings: program.programOfferings.length,
+      studentFees,
+    });
+  }
+
   const programs = await prisma.program.findMany({
     where: { instituteId: auth.instituteId },
     include: {
@@ -108,12 +151,25 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const soft = searchParams.get("soft");
+
     if (!id)
       return NextResponse.json(
         { error: "Missing program id" },
         { status: 400 },
       );
 
+    // Soft delete: set status to ARCHIVED
+    if (soft === "true") {
+      await prisma.program.update({
+        where: { id, instituteId: auth.instituteId },
+        data: { status: "ARCHIVED" },
+      });
+
+      return NextResponse.json({ success: true, archived: true });
+    }
+
+    // Hard delete (original behavior)
     await prisma.program.delete({
       where: { id, instituteId: auth.instituteId },
     });
