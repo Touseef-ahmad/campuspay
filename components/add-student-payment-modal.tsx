@@ -181,10 +181,10 @@ export function AddStudentPaymentModal({
   }, [paymentItems]);
 
   function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-PK", {
       style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
+      currency: "PKR",
+      minimumFractionDigits: 0,
     }).format(amount);
   }
 
@@ -414,7 +414,7 @@ export function AddStudentPaymentModal({
                           </div>
                           <div className="w-32 space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Amount ($)
+                              Amount (PKR)
                             </Label>
                             <Input
                               type="number"

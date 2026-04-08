@@ -58,7 +58,9 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentStudentId, setPaymentStudentId] = useState<string | undefined>();
+  const [paymentStudentId, setPaymentStudentId] = useState<
+    string | undefined
+  >();
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -113,7 +115,7 @@ export default function StudentsPage() {
       const data = await res.json();
       if (data.code === "HAS_PAYMENTS") {
         const shouldArchive = confirm(
-          `${data.message}\n\nWould you like to archive this student instead?`
+          `${data.message}\n\nWould you like to archive this student instead?`,
         );
         if (shouldArchive) {
           handleArchive(studentId);
@@ -157,10 +159,10 @@ export default function StudentsPage() {
   }, [search]);
 
   function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-PK", {
       style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
+      currency: "PKR",
+      minimumFractionDigits: 0,
     }).format(amount);
   }
 
@@ -420,9 +422,7 @@ export default function StudentsPage() {
                           <DollarSign className="h-4 w-4 text-gray-400" />
                           Add Payment
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleArchive(s.id)}
-                        >
+                        <DropdownMenuItem onClick={() => handleArchive(s.id)}>
                           <Archive className="h-4 w-4 text-gray-400" />
                           Archive
                         </DropdownMenuItem>

@@ -126,10 +126,10 @@ export function EnrollStudentModal({
   }, [fees]);
 
   function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-PK", {
       style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
+      currency: "PKR",
+      minimumFractionDigits: 0,
     }).format(amount);
   }
 
@@ -488,7 +488,7 @@ export function EnrollStudentModal({
                             />
                           </div>
                           <div className="w-32 space-y-1">
-                            <Label className="text-xs">Amount ($)</Label>
+                            <Label className="text-xs">Amount (PKR)</Label>
                             <Input
                               type="number"
                               min="0"

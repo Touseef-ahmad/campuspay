@@ -204,10 +204,10 @@ export function StudentFeeModal({
   }, [activeLineItems]);
 
   function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-PK", {
       style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
+      currency: "PKR",
+      minimumFractionDigits: 0,
     }).format(amount);
   }
 
