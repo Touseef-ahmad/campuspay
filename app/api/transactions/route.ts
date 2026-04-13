@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     ? { instituteId: auth.instituteId }
     : {};
 
-  const [payments, expenses] = await Promise.all([
+  const [payments, expenses, deposits] = await Promise.all([
     prisma.paymentTransaction.findMany({
       where: {
         ...(auth.instituteId
@@ -39,6 +39,14 @@ export async function GET(req: NextRequest) {
       orderBy: { date: "desc" },
     }),
     prisma.expense.findMany({
+      where: {
+        ...instituteFilter,
+        ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+      },
+      include: { category: true, financialAccount: true },
+      orderBy: { date: "desc" },
+    }),
+    prisma.accountDeposit.findMany({
       where: {
         ...instituteFilter,
         ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
@@ -69,6 +77,15 @@ export async function GET(req: NextRequest) {
       description: e.title,
       account: e.financialAccount.name,
       category: e.category.name,
+    })),
+    ...deposits.map((d) => ({
+      id: d.id,
+      type: "deposit" as const,
+      amount: Number(d.amount),
+      date: d.date,
+      description: d.description || `Deposit — ${d.category.name}`,
+      account: d.financialAccount.name,
+      category: d.category.name,
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

@@ -61,10 +61,24 @@ interface ExpenseCategory {
   name: string;
 }
 
+interface IncomeCategory {
+  id: string;
+  name: string;
+}
+
+interface Deposit {
+  id: string;
+  amount: number;
+  description: string | null;
+  date: string;
+  category: { name: string };
+  financialAccount: { name: string };
+}
+
 type LedgerEntry = {
   id: string;
   date: string;
-  type: "Expense" | "Transfer";
+  type: "Expense" | "Transfer" | "Deposit";
   account: string;
   description: string;
   amount: number;
@@ -97,12 +111,16 @@ export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<IncomeCategory[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [categoryFilter, setCategoryFilter] = useState<
-    "all" | "expense" | "transfer"
+    "all" | "expense" | "transfer" | "deposit"
   >("all");
   const [dateFilter, setDateFilter] = useState<string>("");
 
@@ -137,23 +155,41 @@ export default function AccountsPage() {
   const [txSaving, setTxSaving] = useState(false);
   const [txError, setTxError] = useState("");
 
+  // Add Amount modal
+  const [addAmtOpen, setAddAmtOpen] = useState(false);
+  const [addAmtForm, setAddAmtForm] = useState({
+    accountId: "",
+    amount: "",
+    categoryId: "",
+    description: "",
+    date: new Date().toISOString().split("T")[0],
+  });
+  const [addAmtSaving, setAddAmtSaving] = useState(false);
+  const [addAmtError, setAddAmtError] = useState("");
+
   async function load() {
-    const [aRes, eRes, tRes, cRes] = await Promise.all([
+    const [aRes, eRes, tRes, dRes, cRes, icRes] = await Promise.all([
       fetch("/api/accounts"),
       fetch("/api/expenses"),
       fetch("/api/transfers"),
+      fetch("/api/accounts/deposits"),
       fetch("/api/expense-categories"),
+      fetch("/api/income-categories"),
     ]);
-    const [a, e, t, c] = await Promise.all([
+    const [a, e, t, d, c, ic] = await Promise.all([
       aRes.json(),
       eRes.json(),
       tRes.json(),
+      dRes.json(),
       cRes.json(),
+      icRes.json(),
     ]);
     setAccounts(Array.isArray(a) ? a : []);
     setExpenses(Array.isArray(e) ? e : []);
     setTransfers(Array.isArray(t) ? t : []);
+    setDeposits(Array.isArray(d) ? d : []);
     setCategories(Array.isArray(c) ? c : []);
+    setIncomeCategories(Array.isArray(ic) ? ic : []);
     setLoading(false);
   }
 
@@ -187,13 +223,24 @@ export default function AccountsPage() {
       });
     });
 
+    deposits.forEach((d) => {
+      entries.push({
+        id: `dep-${d.id}`,
+        date: d.date,
+        type: "Deposit",
+        account: d.financialAccount?.name || "Unknown",
+        description: d.description || d.category?.name || "Deposit",
+        amount: Number(d.amount),
+      });
+    });
+
     // Sort by date descending
     entries.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
     return entries;
-  }, [expenses, transfers]);
+  }, [expenses, transfers, deposits]);
 
   // Filtered entries
   const filteredEntries = useMemo(() => {
@@ -202,6 +249,8 @@ export default function AccountsPage() {
       if (categoryFilter === "expense" && entry.type !== "Expense")
         return false;
       if (categoryFilter === "transfer" && entry.type !== "Transfer")
+        return false;
+      if (categoryFilter === "deposit" && entry.type !== "Deposit")
         return false;
 
       // Date filter
@@ -222,10 +271,14 @@ export default function AccountsPage() {
     const transferTotal = filteredEntries
       .filter((e) => e.type === "Transfer")
       .reduce((sum, e) => sum + e.amount, 0);
+    const depositTotal = filteredEntries
+      .filter((e) => e.type === "Deposit")
+      .reduce((sum, e) => sum + e.amount, 0);
     return {
       expense: expenseTotal,
       transfer: transferTotal,
-      total: expenseTotal + transferTotal,
+      deposit: depositTotal,
+      total: expenseTotal + transferTotal + depositTotal,
     };
   }, [filteredEntries]);
 
@@ -307,6 +360,41 @@ export default function AccountsPage() {
       load();
     } finally {
       setTxSaving(false);
+    }
+  }
+
+  async function handleAddAmount(e: React.FormEvent) {
+    e.preventDefault();
+    setAddAmtError("");
+    setAddAmtSaving(true);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: addAmtForm.accountId,
+          amount: Number(addAmtForm.amount),
+          categoryId: addAmtForm.categoryId,
+          description: addAmtForm.description,
+          date: addAmtForm.date,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAddAmtError(data.error ?? "Failed to add amount");
+        return;
+      }
+      setAddAmtOpen(false);
+      setAddAmtForm({
+        accountId: "",
+        amount: "",
+        categoryId: "",
+        description: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+      load();
+    } finally {
+      setAddAmtSaving(false);
     }
   }
 
@@ -508,6 +596,155 @@ export default function AccountsPage() {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* Add Amount */}
+          <Dialog open={addAmtOpen} onOpenChange={setAddAmtOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 border-[#E4E7EC]">
+                <Plus className="h-4 w-4" />
+                Add Amount
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] p-0 gap-0">
+              <DialogHeader className="px-6 py-4 border-b border-[#E4E7EC]">
+                <DialogTitle className="text-[#333333] font-bold">
+                  Add Amount
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleAddAmount}>
+                <div className="px-6 py-5 space-y-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#667085]">
+                      Select Account <span className="text-[#F04438]">*</span>
+                    </Label>
+                    <Select
+                      value={addAmtForm.accountId}
+                      onValueChange={(v) =>
+                        setAddAmtForm((p) => ({ ...p, accountId: v }))
+                      }
+                      required
+                    >
+                      <SelectTrigger className="h-10 border-[#E4E7EC] bg-white">
+                        <SelectValue placeholder="Select account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name} ({fmt(Number(a.balance))})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#667085]">
+                      Amount <span className="text-[#F04438]">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={addAmtForm.amount}
+                      onChange={(e) =>
+                        setAddAmtForm((p) => ({ ...p, amount: e.target.value }))
+                      }
+                      required
+                      placeholder="0.00"
+                      className="h-10 border-[#E4E7EC] bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#667085]">
+                      Category <span className="text-[#F04438]">*</span>
+                    </Label>
+                    <CreatableSelect
+                      options={incomeCategories.map((c) => ({
+                        value: c.id,
+                        label: c.name,
+                      }))}
+                      value={addAmtForm.categoryId}
+                      onChange={(v) =>
+                        setAddAmtForm((p) => ({ ...p, categoryId: v }))
+                      }
+                      onCreate={async (name) => {
+                        try {
+                          const res = await fetch("/api/income-categories", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name }),
+                          });
+                          if (!res.ok) return null;
+                          const newCategory = await res.json();
+                          setIncomeCategories((prev) => [...prev, newCategory]);
+                          return {
+                            value: newCategory.id,
+                            label: newCategory.name,
+                          };
+                        } catch {
+                          return null;
+                        }
+                      }}
+                      placeholder="Select or create category"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#667085]">
+                      Description <span className="text-[#F04438]">*</span>
+                    </Label>
+                    <Input
+                      value={addAmtForm.description}
+                      onChange={(e) =>
+                        setAddAmtForm((p) => ({
+                          ...p,
+                          description: e.target.value,
+                        }))
+                      }
+                      required
+                      placeholder="e.g., Monthly funding, Donation"
+                      className="h-10 border-[#E4E7EC] bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#667085]">
+                      Date <span className="text-[#F04438]">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="date"
+                        value={addAmtForm.date}
+                        onChange={(e) =>
+                          setAddAmtForm((p) => ({ ...p, date: e.target.value }))
+                        }
+                        required
+                        className="h-10 border-[#E4E7EC] bg-white pr-10"
+                      />
+                      <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#667085] pointer-events-none" />
+                    </div>
+                  </div>
+                  {addAmtError && (
+                    <p className="text-sm text-[#F04438]">{addAmtError}</p>
+                  )}
+                </div>
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#E4E7EC]">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAddAmtOpen(false)}
+                    className="border-[#E4E7EC] text-[#333333] hover:bg-gray-50"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={addAmtSaving}
+                    className="bg-[#007BFF] hover:bg-[#0069D9] text-white font-semibold"
+                  >
+                    {addAmtSaving ? "Adding…" : "Add Amount"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -654,6 +891,7 @@ export default function AccountsPage() {
             <SelectItem value="all">All Categories</SelectItem>
             <SelectItem value="expense">Expense</SelectItem>
             <SelectItem value="transfer">Transfer</SelectItem>
+            <SelectItem value="deposit">Deposit</SelectItem>
           </SelectContent>
         </Select>
 
@@ -810,7 +1048,9 @@ export default function AccountsPage() {
                           className={
                             entry.type === "Transfer"
                               ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
-                              : ""
+                              : entry.type === "Deposit"
+                                ? "bg-green-100 text-green-700 hover:bg-green-100"
+                                : ""
                           }
                         >
                           {entry.type}
@@ -844,8 +1084,16 @@ export default function AccountsPage() {
                   <span className="text-sm text-muted-foreground">
                     TRANSFER:
                   </span>
-                  <span className="font-bold text-green-600">
+                  <span className="font-bold text-blue-600">
                     {fmtShort(summary.transfer)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    DEPOSIT:
+                  </span>
+                  <span className="font-bold text-green-600">
+                    {fmtShort(summary.deposit)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

@@ -10,6 +10,14 @@ const createSchema = z.object({
   isDefault: z.boolean().optional().default(false),
 });
 
+const addAmountSchema = z.object({
+  accountId: z.string().min(1),
+  amount: z.number().positive(),
+  categoryId: z.string().min(1),
+  description: z.string().optional(),
+  date: z.string().optional(),
+});
+
 export async function GET(req: NextRequest) {
   const auth = getAuthPayload(req);
   if (!auth?.instituteId)
@@ -58,6 +66,71 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(account, { status: 201 });
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.issues }, { status: 400 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+// Add amount to account (deposit/funding)
+export async function PATCH(req: NextRequest) {
+  const auth = getAuthPayload(req);
+  if (!auth?.instituteId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const data = addAmountSchema.parse(body);
+
+    // Verify account belongs to this institute
+    const existing = await prisma.financialAccount.findFirst({
+      where: { id: data.accountId, instituteId: auth.instituteId },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    // Verify category belongs to this institute
+    const category = await prisma.incomeCategory.findFirst({
+      where: { id: data.categoryId, instituteId: auth.instituteId },
+    });
+
+    if (!category) {
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 },
+      );
+    }
+
+    // Create deposit record and update balance in a transaction
+    const [deposit, account] = await prisma.$transaction([
+      prisma.accountDeposit.create({
+        data: {
+          amount: data.amount,
+          description: data.description,
+          date: data.date ? new Date(data.date) : new Date(),
+          instituteId: auth.instituteId,
+          financialAccountId: data.accountId,
+          categoryId: data.categoryId,
+        },
+        include: { category: true, financialAccount: true },
+      }),
+      prisma.financialAccount.update({
+        where: { id: data.accountId },
+        data: {
+          balance: {
+            increment: data.amount,
+          },
+        },
+      }),
+    ]);
+
+    return NextResponse.json({ deposit, account });
   } catch (err) {
     if (err instanceof z.ZodError)
       return NextResponse.json({ error: err.issues }, { status: 400 });

@@ -24,7 +24,9 @@ model Institute {
   fees              Fee[]
   financialAccounts FinancialAccount[]
   expenseCategories ExpenseCategory[]
+  incomeCategories  IncomeCategory[]
   expenses          Expense[]
+  deposits          AccountDeposit[]
   accountTransfers  AccountTransfer[]
 }
 
@@ -216,6 +218,7 @@ model FinancialAccount {
 
   payments          PaymentTransaction[]
   expenses          Expense[]
+  deposits          AccountDeposit[]
   transfersFrom     AccountTransfer[]    @relation("FromAccount")
   transfersTo       AccountTransfer[]    @relation("ToAccount")
 }
@@ -273,5 +276,31 @@ model AccountTransfer {
 
   toAccountId String
   toAccount   FinancialAccount @relation("ToAccount", fields: [toAccountId], references: [id])
+}
+
+model IncomeCategory {
+  id   String @id @default(cuid())
+  name String
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  deposits AccountDeposit[]
+}
+
+model AccountDeposit {
+  id          String   @id @default(cuid())
+  amount      Decimal  @db.Decimal(12, 2)
+  description String?
+  date        DateTime @default(now())
+
+  instituteId String
+  institute   Institute @relation(fields: [instituteId], references: [id])
+
+  financialAccountId String
+  financialAccount   FinancialAccount @relation(fields: [financialAccountId], references: [id])
+
+  categoryId String
+  category   IncomeCategory @relation(fields: [categoryId], references: [id])
 }
 

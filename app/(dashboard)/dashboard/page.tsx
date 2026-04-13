@@ -27,7 +27,7 @@ interface DashboardStats {
 
 interface Transaction {
   id: string;
-  type: "credit" | "debit";
+  type: "credit" | "debit" | "deposit";
   amount: number;
   date: string;
   description: string;
@@ -42,7 +42,7 @@ interface Transaction {
 // ---------------------------------------------------------------------------
 // Category filter options
 // ---------------------------------------------------------------------------
-const CATEGORIES = ["All", "Fee Collection", "Expense"];
+const CATEGORIES = ["All", "Fee Collection", "Expense", "Deposit"];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -158,10 +158,15 @@ export default function DashboardPage() {
     return transactions.map((t) => ({
       id: t.id,
       date: formatDate(t.date),
-      category: t.type === "credit" ? "Fee Collection" : "Expense",
+      category:
+        t.type === "credit"
+          ? "Fee Collection"
+          : t.type === "deposit"
+            ? "Deposit"
+            : "Expense",
       description: t.description,
       credit: t.type === "debit" ? t.amount : null,
-      debit: t.type === "credit" ? t.amount : null,
+      debit: t.type === "credit" || t.type === "deposit" ? t.amount : null,
       studentId: t.studentId,
       receiptNumber: t.receiptNumber,
     }));
