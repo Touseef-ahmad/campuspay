@@ -105,10 +105,13 @@ export default function ProgramsPage() {
   const [deletingProgram, setDeletingProgram] = useState<Program | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
-  async function load() {
+  async function load(includeArchived = false) {
     setLoading(true);
+    const programsUrl = includeArchived
+      ? "/api/programs?includeArchived=true"
+      : "/api/programs";
     const [programsRes, termsRes] = await Promise.all([
-      fetch("/api/programs"),
+      fetch(programsUrl),
       fetch("/api/academic-terms"),
     ]);
     const programsData = await programsRes.json();
@@ -119,8 +122,9 @@ export default function ProgramsPage() {
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    // Include archived only when explicitly filtering for "archived"
+    load(filterStatus === "archived");
+  }, [filterStatus]);
 
   function openEdit(p: Program) {
     setEditingProgram(p);

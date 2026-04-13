@@ -61,10 +61,17 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Exclude archived programs by default unless includeArchived=true
+  const includeArchived = searchParams.get("includeArchived") === "true";
+
   const programs = await prisma.program.findMany({
-    where: { instituteId: auth.instituteId },
+    where: {
+      instituteId: auth.instituteId,
+      ...(!includeArchived && { status: { not: "ARCHIVED" } }),
+    },
     include: {
       programOfferings: {
+        where: { status: { not: "ARCHIVED" } },
         include: { term: true },
         orderBy: { semesterNumber: "asc" },
       },
@@ -159,12 +166,18 @@ export async function DELETE(req: NextRequest) {
         { status: 400 },
       );
 
-    // Soft delete: set status to ARCHIVED
+    // Soft delete: set status to ARCHIVED and also archive all program offerings
     if (soft === "true") {
-      await prisma.program.update({
-        where: { id, instituteId: auth.instituteId },
-        data: { status: "ARCHIVED" },
-      });
+      await prisma.$transaction([
+        prisma.program.update({
+          where: { id, instituteId: auth.instituteId },
+          data: { status: "ARCHIVED" },
+        }),
+        prisma.programOffering.updateMany({
+          where: { programId: id },
+          data: { status: "ARCHIVED" },
+        }),
+      ]);
 
       return NextResponse.json({ success: true, archived: true });
     }

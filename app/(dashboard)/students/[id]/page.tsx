@@ -123,6 +123,11 @@ export default function StudentDetailPage() {
   // Delete fee state
   const [deletingFeeId, setDeletingFeeId] = useState<string | null>(null);
 
+  // Delete payment state
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(
+    null,
+  );
+
   // Edit student dialog -- navigation handled by Link in Edit Profile button
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -203,6 +208,36 @@ export default function StudentDetailPage() {
       }
     } finally {
       setDeletingFeeId(null);
+    }
+  }
+
+  async function handleDeletePayment(
+    paymentId: string,
+    receiptNumber: string,
+    amount: number,
+  ) {
+    const message = `Are you sure you want to delete payment ${receiptNumber} for ${fmt(amount)}?\n\nThis will reverse the account balance.`;
+
+    if (!confirm(message)) return;
+
+    setDeletingPaymentId(paymentId);
+    try {
+      const res = await fetch(`/api/payments/${paymentId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(
+          `Payment deleted. ${fmt(data.reversedAmount)} has been reversed from the account.`,
+        );
+        refresh();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete payment");
+      }
+    } finally {
+      setDeletingPaymentId(null);
     }
   }
 
@@ -622,30 +657,12 @@ export default function StudentDetailPage() {
                       0,
                     );
                     const due = Number(sf.amountDue) - paid;
-                    const hasPayments = sf.payments.length > 0;
-                    const isDeleting = deletingFeeId === sf.id;
                     return (
                       <div
                         key={sf.id}
-                        className="flex items-start justify-between text-sm group"
+                        className="flex items-start justify-between text-sm"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-700">{sf.fee.name}</span>
-                          <button
-                            onClick={() =>
-                              handleDeleteFee(sf.id, sf.fee.name, hasPayments)
-                            }
-                            disabled={isDeleting}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-500 hover:text-red-600 disabled:opacity-50"
-                            title={
-                              hasPayments
-                                ? "Delete fee and reverse payments"
-                                : "Delete fee"
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        <span className="text-gray-700">{sf.fee.name}</span>
                         <div className="text-right">
                           <span className="font-medium text-gray-900">
                             {fmt(Number(sf.amountDue))}
@@ -728,35 +745,55 @@ export default function StudentDetailPage() {
                     <TableHead className="text-xs font-bold uppercase tracking-wide text-gray-400">
                       Status
                     </TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentHistory.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs text-blue-600">
-                        {p.receiptNumber}
-                      </TableCell>
-                      <TableCell className="text-xs text-gray-500">
-                        {new Date(p.date).toLocaleDateString("en-US", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-700">
-                        {p.description}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium text-gray-900">
-                        {fmt(p.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Paid
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {paymentHistory.map((p) => {
+                    const isDeleting = deletingPaymentId === p.id;
+                    return (
+                      <TableRow key={p.id} className="group">
+                        <TableCell className="font-mono text-xs text-blue-600">
+                          {p.receiptNumber}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500">
+                          {new Date(p.date).toLocaleDateString("en-US", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-700">
+                          {p.description}
+                        </TableCell>
+                        <TableCell className="text-sm font-medium text-gray-900">
+                          {fmt(p.amount)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Paid
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() =>
+                              handleDeletePayment(
+                                p.id,
+                                p.receiptNumber,
+                                p.amount,
+                              )
+                            }
+                            disabled={isDeleting}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-500 hover:text-red-600 disabled:opacity-50"
+                            title="Delete payment and reverse account balance"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

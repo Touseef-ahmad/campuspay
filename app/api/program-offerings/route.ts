@@ -20,8 +20,14 @@ export async function GET(req: NextRequest) {
   const programId = searchParams.get("programId");
   const termId = searchParams.get("termId");
 
+  const includeArchived = searchParams.get("includeArchived") === "true";
+
   const where: Record<string, unknown> = {
-    program: { instituteId: auth.instituteId },
+    program: {
+      instituteId: auth.instituteId,
+      ...(!includeArchived && { status: { not: "ARCHIVED" } }),
+    },
+    ...(!includeArchived && { status: { not: "ARCHIVED" } }),
   };
   if (programId) where.programId = programId;
   if (termId) where.termId = termId;

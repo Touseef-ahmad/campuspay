@@ -11,13 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Table,
   TableBody,
@@ -92,15 +86,11 @@ export default function StudentsPage() {
   const [programOfferings, setProgramOfferings] = useState<ProgramOffering[]>(
     [],
   );
+
+  console.log("Program offerings with counts:", programOfferings);
   const [selectedClassroom, setSelectedClassroom] =
     useState<ProgramOffering | null>(null);
   const [loadingClassrooms, setLoadingClassrooms] = useState(true);
-
-  // Filter state
-  const [filterDepartment, setFilterDepartment] = useState("all");
-  const [filterSemester, setFilterSemester] = useState("fall-2024");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterDate, setFilterDate] = useState("2026-03-18");
 
   async function loadStats() {
     try {
