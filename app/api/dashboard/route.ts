@@ -15,28 +15,23 @@ export async function GET(req: NextRequest) {
     ? { student: { instituteId: auth.instituteId } }
     : {};
 
-  // Get current month date range
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    0,
-    23,
-    59,
-    59,
-  );
+  // Support optional from/to query params; fall back to current month
+  const { searchParams } = new URL(req.url);
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
 
-  // Get last month date range for comparison
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const endOfLastMonth = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    0,
-    23,
-    59,
-    59,
-  );
+  const now = new Date();
+  const startOfMonth = fromParam
+    ? new Date(fromParam)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = toParam
+    ? new Date(new Date(toParam).setHours(23, 59, 59, 999))
+    : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  // Previous period of same length for comparison
+  const periodMs = endOfMonth.getTime() - startOfMonth.getTime();
+  const startOfLastMonth = new Date(startOfMonth.getTime() - periodMs - 1);
+  const endOfLastMonth = new Date(startOfMonth.getTime() - 1);
 
   const [
     pendingFees,
@@ -64,7 +59,7 @@ export async function GET(req: NextRequest) {
       where: { studentFee: studentInstituteFilter },
       _sum: { amountPaid: true },
     }),
-    // This month's payments
+    // Period payments
     prisma.paymentTransaction.aggregate({
       where: {
         studentFee: studentInstituteFilter,
@@ -72,7 +67,7 @@ export async function GET(req: NextRequest) {
       },
       _sum: { amountPaid: true },
     }),
-    // Last month's payments
+    // Previous period payments
     prisma.paymentTransaction.aggregate({
       where: {
         studentFee: studentInstituteFilter,
@@ -80,9 +75,12 @@ export async function GET(req: NextRequest) {
       },
       _sum: { amountPaid: true },
     }),
-    // Total expenses (all time)
+    // Period expenses
     prisma.expense.aggregate({
-      where: instituteFilter,
+      where: {
+        ...instituteFilter,
+        date: { gte: startOfMonth, lte: endOfMonth },
+      },
       _sum: { amount: true },
     }),
   ]);

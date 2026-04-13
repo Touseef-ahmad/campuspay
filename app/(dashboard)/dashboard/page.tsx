@@ -10,6 +10,7 @@ import {
   Plus,
   Calendar,
   ChevronDown,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
@@ -47,7 +48,14 @@ const CATEGORIES = ["All", "Fee Collection", "Expense", "Deposit"];
 export default function DashboardPage() {
   const router = useRouter();
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [dateFilter] = useState("18-Mar-2026");
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split("T")[0];
+  });
+  const [dateTo, setDateTo] = useState<string>(() => {
+    return new Date().toISOString().split("T")[0];
+  });
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     monthlyRevenue: 0,
@@ -62,10 +70,16 @@ export default function DashboardPage() {
   // Fetch dashboard data
   useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       try {
+        const params = new URLSearchParams();
+        if (dateFrom) params.set("from", dateFrom);
+        if (dateTo) params.set("to", dateTo);
+        const qs = params.toString() ? `?${params}` : "";
+
         const [dashboardRes, transactionsRes] = await Promise.all([
-          fetch("/api/dashboard"),
-          fetch("/api/transactions"),
+          fetch(`/api/dashboard${qs}`),
+          fetch(`/api/transactions${qs}`),
         ]);
 
         if (dashboardRes.ok) {
@@ -90,7 +104,204 @@ export default function DashboardPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [dateFrom, dateTo]);
+
+  // Export / print report
+  function handleExport() {
+    // Collect unique income columns (fee collection + deposit categories)
+    const hasFeeIncome = transactions.some((t) => t.type === "credit");
+    const depositCols = [
+      ...new Set(
+        transactions
+          .filter((t) => t.type === "deposit")
+          .map((t) => t.category || "Deposit"),
+      ),
+    ].sort();
+    const incomeCols = [
+      ...(hasFeeIncome ? ["Fee Collection"] : []),
+      ...depositCols,
+    ];
+
+    // Unique expense categories
+    const expenseCols = [
+      ...new Set(
+        transactions
+          .filter((t) => t.type === "debit")
+          .map((t) => t.category || "General"),
+      ),
+    ].sort();
+
+    // Group by date
+    const dateMap = new Map<
+      string,
+      { income: Record<string, number>; expenses: Record<string, number> }
+    >();
+    transactions.forEach((t) => {
+      const key = new Date(t.date).toISOString().split("T")[0];
+      if (!dateMap.has(key)) dateMap.set(key, { income: {}, expenses: {} });
+      const entry = dateMap.get(key)!;
+      if (t.type === "credit") {
+        entry.income["Fee Collection"] =
+          (entry.income["Fee Collection"] || 0) + t.amount;
+      } else if (t.type === "deposit") {
+        const col = t.category || "Deposit";
+        entry.income[col] = (entry.income[col] || 0) + t.amount;
+      } else {
+        const col = t.category || "General";
+        entry.expenses[col] = (entry.expenses[col] || 0) + t.amount;
+      }
+    });
+
+    const sortedDates = [...dateMap.keys()].sort();
+
+    // Column totals
+    const incomeTotals: Record<string, number> = {};
+    const expenseTotals: Record<string, number> = {};
+    sortedDates.forEach((d) => {
+      const e = dateMap.get(d)!;
+      incomeCols.forEach(
+        (c) => (incomeTotals[c] = (incomeTotals[c] || 0) + (e.income[c] || 0)),
+      );
+      expenseCols.forEach(
+        (c) =>
+          (expenseTotals[c] = (expenseTotals[c] || 0) + (e.expenses[c] || 0)),
+      );
+    });
+
+    const fmt = (n: number) => (n ? `RS ${n.toLocaleString("en-PK")}` : "");
+
+    const fmtDate = (iso: string) =>
+      new Date(iso + "T00:00:00").toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+
+    const fromLabel = dateFrom ? fmtDate(dateFrom) : "—";
+    const toLabel = dateTo ? fmtDate(dateTo) : "—";
+
+    const incomeHeaderCells = incomeCols
+      .map(
+        (c) =>
+          `<th class="cat-header income-cat"><div class="rotated">${c}</div></th>`,
+      )
+      .join("");
+    const expenseHeaderCells = expenseCols
+      .map(
+        (c) =>
+          `<th class="cat-header expense-cat"><div class="rotated">${c}</div></th>`,
+      )
+      .join("");
+
+    const dataRows = sortedDates
+      .map((d) => {
+        const e = dateMap.get(d)!;
+        const totalIncome = incomeCols.reduce(
+          (s, c) => s + (e.income[c] || 0),
+          0,
+        );
+        const totalExpense = expenseCols.reduce(
+          (s, c) => s + (e.expenses[c] || 0),
+          0,
+        );
+        const incomeCells = incomeCols
+          .map((c) => `<td>${fmt(e.income[c] || 0)}</td>`)
+          .join("");
+        const expenseCells = expenseCols
+          .map((c) => `<td>${fmt(e.expenses[c] || 0)}</td>`)
+          .join("");
+        return `<tr>
+          <td class="date-cell">${fmtDate(d)}</td>
+          ${incomeCells}
+          <td class="subtotal income-cat">${fmt(totalIncome)}</td>
+          ${expenseCells}
+          <td class="subtotal expense-cat">${fmt(totalExpense)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const grandTotalIncome = incomeCols.reduce(
+      (s, c) => s + (incomeTotals[c] || 0),
+      0,
+    );
+    const grandTotalExpenses = expenseCols.reduce(
+      (s, c) => s + (expenseTotals[c] || 0),
+      0,
+    );
+    const incomeTotalCells = incomeCols
+      .map((c) => `<td>${fmt(incomeTotals[c] || 0)}</td>`)
+      .join("");
+    const expenseTotalCells = expenseCols
+      .map((c) => `<td>${fmt(expenseTotals[c] || 0)}</td>`)
+      .join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Financial Ledger</title>
+  <style>
+    @media print { @page { size: A3 landscape; margin: 10mm; } }
+    body { font-family: Arial, sans-serif; font-size: 8.5px; color: #000; }
+    h1 { text-align: center; font-size: 14px; margin: 0 0 3px; text-transform: uppercase; letter-spacing: 1px; }
+    h2 { text-align: center; font-size: 10px; font-weight: normal; margin: 0 0 10px; }
+    table { border-collapse: collapse; width: 100%; table-layout: auto; }
+    th, td { border: 1px solid #000; padding: 3px 5px; text-align: right; white-space: nowrap; }
+    .date-cell { text-align: left; font-weight: bold; min-width: 80px; }
+    .cat-header { padding: 4px 3px; }
+    .rotated { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; height: 90px; white-space: nowrap; font-size: 7.5px; }
+    .group-header { font-weight: bold; font-size: 10px; text-align: center; }
+    .income-cat { background-color: #e8f5e9; }
+    .expense-cat { background-color: #fce4ec; }
+    .subtotal { font-weight: bold; background-color: #f5f5f5; }
+    .total-row td { font-weight: bold; background-color: #eeeeee; }
+    .label-col { text-align: left; font-weight: bold; }
+    tr:hover { background-color: #fafafa; }
+  </style>
+</head>
+<body>
+  <h1>Daily Income &amp; Expense Ledger</h1>
+  <h2>Period: ${fromLabel} &mdash; ${toLabel}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2" class="date-cell" style="text-align:center;vertical-align:middle;">Date</th>
+        <th colspan="${incomeCols.length + 1}" class="group-header income-cat">INCOME</th>
+        <th colspan="${expenseCols.length + 1}" class="group-header expense-cat">EXPENSES</th>
+      </tr>
+      <tr>
+        ${incomeHeaderCells}
+        <th class="cat-header income-cat subtotal"><div class="rotated">Total Income</div></th>
+        ${expenseHeaderCells}
+        <th class="cat-header expense-cat subtotal"><div class="rotated">Total Expenses</div></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sortedDates.length === 0 ? `<tr><td colspan="${incomeCols.length + expenseCols.length + 3}" style="text-align:center;padding:16px;">No transactions in selected range</td></tr>` : dataRows}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td class="label-col">TOTAL</td>
+        ${incomeTotalCells}
+        <td class="subtotal income-cat">${fmt(grandTotalIncome)}</td>
+        ${expenseTotalCells}
+        <td class="subtotal expense-cat">${fmt(grandTotalExpenses)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=1200,height=900");
+    if (!win) {
+      alert("Please allow pop-ups to export the report.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
 
   // Format currency helper
   function formatCurrency(amount: number) {
@@ -200,19 +411,32 @@ export default function DashboardPage() {
             enrollment
           </p>
         </div>
-        <Button
-          className="bg-blue-600 text-white hover:bg-blue-700"
-          onClick={() => setPaymentModalOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Add Payment
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-gray-200 text-gray-700 hover:bg-gray-50"
+            onClick={handleExport}
+          >
+            <Printer className="h-4 w-4" />
+            Export Report
+          </Button>
+          <Button
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => setPaymentModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Add Payment
+          </Button>
+        </div>
         <AddStudentPaymentModal
           open={paymentModalOpen}
           onOpenChange={setPaymentModalOpen}
           onSuccess={() => {
-            // Refresh dashboard data after payment
-            fetch("/api/dashboard")
+            const params = new URLSearchParams();
+            if (dateFrom) params.set("from", dateFrom);
+            if (dateTo) params.set("to", dateTo);
+            const qs = params.toString() ? `?${params}` : "";
+            fetch(`/api/dashboard${qs}`)
               .then((res) => res.json())
               .then((data) => {
                 setStats({
@@ -223,7 +447,7 @@ export default function DashboardPage() {
                   totalExpenses: data.totalExpenses ?? 0,
                 });
               });
-            fetch("/api/transactions")
+            fetch(`/api/transactions${qs}`)
               .then((res) => res.json())
               .then((data) => {
                 setTransactions(Array.isArray(data) ? data : []);
@@ -286,18 +510,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Date filter */}
+        {/* Date range filter */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-400">Date</span>
-          <div className="relative">
-            <input
-              type="text"
-              readOnly
-              value={dateFilter}
-              className="w-36 rounded-md border border-gray-200 bg-white px-3 py-1.5 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Calendar className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-          </div>
+          <Calendar className="h-3.5 w-3.5 text-gray-400" />
+          <span className="text-xs font-medium text-gray-400">From</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-xs font-medium text-gray-400">To</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 
