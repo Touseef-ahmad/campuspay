@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
 const paymentItemSchema = z.object({
   studentFeeId: z.string(),
@@ -13,6 +14,33 @@ const schema = z.object({
   payments: z.array(paymentItemSchema).min(1),
   method: z.string().optional().default("cash"),
 });
+
+// Generate unique receipt number: RCP-YYYY-NNNNNN
+async function generateReceiptNumber(
+  tx: Prisma.TransactionClient,
+  offset: number = 0,
+): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `RCP-${year}-`;
+
+  const lastPayment = await tx.paymentTransaction.findFirst({
+    where: {
+      receiptNumber: { startsWith: prefix },
+    },
+    orderBy: { receiptNumber: "desc" },
+    select: { receiptNumber: true },
+  });
+
+  let nextNumber = 1;
+  if (lastPayment?.receiptNumber) {
+    const match = lastPayment.receiptNumber.match(/RCP-\d{4}-(\d+)/);
+    if (match) {
+      nextNumber = parseInt(match[1], 10) + 1;
+    }
+  }
+
+  return `${prefix}${String(nextNumber + offset).padStart(6, "0")}`;
+}
 
 export async function POST(req: NextRequest) {
   const auth = getAuthPayload(req);
@@ -91,7 +119,8 @@ export async function POST(req: NextRequest) {
       const createdPayments = [];
       let totalPaymentAmount = 0;
 
-      for (const paymentItem of data.payments) {
+      for (let i = 0; i < data.payments.length; i++) {
+        const paymentItem = data.payments[i];
         const studentFee = studentFees.find(
           (sf) => sf.id === paymentItem.studentFeeId,
         )!;
@@ -106,6 +135,9 @@ export async function POST(req: NextRequest) {
         if (newTotalPaid >= Number(studentFee.amountDue)) newStatus = "PAID";
         if (newTotalPaid === 0) newStatus = "PENDING";
 
+        // Generate receipt number for this payment
+        const receiptNumber = await generateReceiptNumber(tx, i);
+
         // Create payment transaction
         const payment = await tx.paymentTransaction.create({
           data: {
@@ -114,6 +146,7 @@ export async function POST(req: NextRequest) {
             amountPaid: paymentItem.amount,
             method: data.method,
             date: new Date(),
+            receiptNumber,
           },
         });
 

@@ -43,6 +43,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   Clock,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { StudentFeeModal } from "@/components/student-fee-modal";
@@ -52,6 +53,15 @@ interface StudentDetail {
   studentId: string | null;
   firstName: string;
   lastName: string;
+  email: string | null;
+  phone: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address: string | null;
+  city: string | null;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  guardianRelation: string | null;
   department: string | null;
   enrollmentDate: string | null;
   academicYear: string | null;
@@ -71,6 +81,7 @@ interface StudentDetail {
     fee: { name: string };
     payments: {
       id: string;
+      receiptNumber: string;
       amountPaid: number;
       method: string;
       date: string;
@@ -108,6 +119,9 @@ export default function StudentDetailPage() {
     financialAccountId: "",
   });
   const [paySaving, setPaySaving] = useState(false);
+
+  // Delete fee state
+  const [deletingFeeId, setDeletingFeeId] = useState<string | null>(null);
 
   // Edit student dialog -- navigation handled by Link in Edit Profile button
 
@@ -158,6 +172,40 @@ export default function StudentDetailPage() {
     setPaySaving(false);
   }
 
+  async function handleDeleteFee(
+    feeId: string,
+    feeName: string,
+    hasPayments: boolean,
+  ) {
+    const message = hasPayments
+      ? `Are you sure you want to delete "${feeName}"?\n\nThis will also delete all associated payment transactions and reverse the account balances.`
+      : `Are you sure you want to delete "${feeName}"?`;
+
+    if (!confirm(message)) return;
+
+    setDeletingFeeId(feeId);
+    try {
+      const res = await fetch(`/api/student-fees/${feeId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.deletedPayments > 0) {
+          alert(
+            `Fee deleted. ${data.deletedPayments} payment(s) were reversed, totaling ${fmt(data.reversedAmount)}.`,
+          );
+        }
+        refresh();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete fee");
+      }
+    } finally {
+      setDeletingFeeId(null);
+    }
+  }
+
   if (loading) return <div className="text-muted-foreground p-8">Loading…</div>;
   if (!student)
     return <div className="text-destructive p-8">Student not found</div>;
@@ -180,6 +228,7 @@ export default function StudentDetailPage() {
   const paymentHistory = student.studentFees.flatMap((sf) =>
     sf.payments.map((p) => ({
       id: p.id,
+      receiptNumber: p.receiptNumber,
       date: p.date,
       description: sf.fee.name,
       amount: Number(p.amountPaid),
@@ -263,21 +312,21 @@ export default function StudentDetailPage() {
           </div>
 
           {/* Contact info bar */}
-          {/* TODO: Email, phone, address come from personalForm fields (not yet in schema).
-              Wire these once the Student model is extended. */}
           <div className="mt-4 flex flex-wrap items-center gap-6 border-t pt-4 text-sm text-gray-500">
             <span className="flex items-center gap-1.5">
               <Mail className="h-4 w-4 text-gray-400" />
-              {student.firstName.toLowerCase()}
-              {student.lastName.toLowerCase()}@email.com
+              {student.email ||
+                `${student.firstName.toLowerCase()}${student.lastName.toLowerCase()}@email.com`}
             </span>
             <span className="flex items-center gap-1.5">
               <Phone className="h-4 w-4 text-gray-400" />
-              +92 331 123 4567
+              {student.phone || "—"}
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin className="h-4 w-4 text-gray-400" />
-              123 College Street, Model Town
+              {student.address
+                ? `${student.address}${student.city ? `, ${student.city}` : ""}`
+                : "—"}
             </span>
           </div>
         </CardContent>
@@ -299,20 +348,42 @@ export default function StudentDetailPage() {
               {/* TODO: dateOfBirth, gender, address, phoneNumber, emergencyContact* fields need
                   to be added to the Student schema before they can be read from `student`. */}
               {[
-                { label: "DATE OF BIRTH", value: "June 15, 1997" },
-                { label: "GENDER", value: "Female" },
+                {
+                  label: "DATE OF BIRTH",
+                  value: student.dateOfBirth
+                    ? new Date(student.dateOfBirth).toLocaleDateString(
+                        "en-US",
+                        {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        },
+                      )
+                    : "—",
+                },
+                {
+                  label: "GENDER",
+                  value: student.gender
+                    ? student.gender.charAt(0).toUpperCase() +
+                      student.gender.slice(1)
+                    : "—",
+                },
                 {
                   label: "ADDRESS",
-                  value: student.department ? "On record" : "—",
+                  value: student.address
+                    ? `${student.address}${student.city ? `, ${student.city}` : ""}`
+                    : "—",
                 },
-                { label: "PHONE", value: "+92 331 123 4567" },
+                { label: "PHONE", value: student.phone || "—" },
                 {
                   label: "EMAIL",
-                  value: `${student.firstName.toLowerCase()}@email.com`,
+                  value: student.email || "—",
                 },
                 {
                   label: "EMERGENCY CONTACT",
-                  value: "Ali Ahmed (Father) · +92 300 000 0000",
+                  value: student.guardianName
+                    ? `${student.guardianName}${student.guardianRelation ? ` (${student.guardianRelation.charAt(0).toUpperCase() + student.guardianRelation.slice(1)})` : ""} · ${student.guardianPhone || "—"}`
+                    : "—",
                 },
               ].map(({ label, value }) => (
                 <div key={label} className="flex flex-col gap-0.5 px-4 py-3">
@@ -551,12 +622,30 @@ export default function StudentDetailPage() {
                       0,
                     );
                     const due = Number(sf.amountDue) - paid;
+                    const hasPayments = sf.payments.length > 0;
+                    const isDeleting = deletingFeeId === sf.id;
                     return (
                       <div
                         key={sf.id}
-                        className="flex items-start justify-between text-sm"
+                        className="flex items-start justify-between text-sm group"
                       >
-                        <span className="text-gray-700">{sf.fee.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-700">{sf.fee.name}</span>
+                          <button
+                            onClick={() =>
+                              handleDeleteFee(sf.id, sf.fee.name, hasPayments)
+                            }
+                            disabled={isDeleting}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-500 hover:text-red-600 disabled:opacity-50"
+                            title={
+                              hasPayments
+                                ? "Delete fee and reverse payments"
+                                : "Delete fee"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                         <div className="text-right">
                           <span className="font-medium text-gray-900">
                             {fmt(Number(sf.amountDue))}
@@ -625,6 +714,9 @@ export default function StudentDetailPage() {
                 <TableHeader>
                   <TableRow className="bg-gray-50">
                     <TableHead className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                      Receipt #
+                    </TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wide text-gray-400">
                       Date
                     </TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wide text-gray-400">
@@ -641,6 +733,9 @@ export default function StudentDetailPage() {
                 <TableBody>
                   {paymentHistory.map((p) => (
                     <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs text-blue-600">
+                        {p.receiptNumber}
+                      </TableCell>
                       <TableCell className="text-xs text-gray-500">
                         {new Date(p.date).toLocaleDateString("en-US", {
                           day: "numeric",

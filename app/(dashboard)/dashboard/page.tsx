@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   LineChart,
   AlertTriangle,
@@ -33,6 +34,9 @@ interface Transaction {
   account: string;
   method?: string;
   category?: string;
+  receiptNumber?: string;
+  studentId?: string;
+  studentName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +45,7 @@ interface Transaction {
 const CATEGORIES = ["All", "Fee Collection", "Expense"];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [dateFilter] = useState("18-Mar-2026");
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -157,6 +162,8 @@ export default function DashboardPage() {
       description: t.description,
       credit: t.type === "debit" ? t.amount : null,
       debit: t.type === "credit" ? t.amount : null,
+      studentId: t.studentId,
+      receiptNumber: t.receiptNumber,
     }));
   }, [transactions]);
 
@@ -336,12 +343,20 @@ export default function DashboardPage() {
                 filteredRows.map((row) => (
                   <tr
                     key={row.id}
-                    className="transition-colors hover:bg-gray-50"
+                    className={`transition-colors hover:bg-gray-50 ${row.studentId ? "cursor-pointer" : ""}`}
+                    onClick={() =>
+                      row.studentId && router.push(`/students/${row.studentId}`)
+                    }
                   >
                     <td className="px-6 py-3 text-gray-800">{row.date}</td>
                     <td className="px-6 py-3 text-gray-800">{row.category}</td>
                     <td className="px-6 py-3 text-gray-800">
-                      {row.description}
+                      <span>{row.description}</span>
+                      {row.receiptNumber && (
+                        <span className="ml-2 text-xs text-blue-600 font-mono">
+                          ({row.receiptNumber})
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3 font-medium">
                       {row.credit ? (

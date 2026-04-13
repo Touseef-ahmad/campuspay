@@ -57,6 +57,9 @@ export async function GET(req: NextRequest) {
       description: `Payment from ${p.studentFee.student.firstName} ${p.studentFee.student.lastName} — ${p.studentFee.fee.name}`,
       account: p.financialAccount.name,
       method: p.method,
+      receiptNumber: p.receiptNumber,
+      studentId: p.studentFee.student.id,
+      studentName: `${p.studentFee.student.firstName} ${p.studentFee.student.lastName}`,
     })),
     ...expenses.map((e) => ({
       id: e.id,

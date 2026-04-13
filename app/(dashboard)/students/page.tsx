@@ -35,6 +35,9 @@ import {
   DollarSign,
   Archive,
   Trash2,
+  Users,
+  ChevronLeft,
+  BookOpen,
 } from "lucide-react";
 import { EnrollStudentModal } from "@/components/enroll-student-modal";
 import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
@@ -46,9 +49,27 @@ interface Student {
   lastName: string;
   department: string | null;
   status: string;
-  // TODO: Add amountPaid and balanceDue once the /api/students endpoint returns fee aggregates
   amountPaid?: number;
   balanceDue?: number;
+}
+
+interface ProgramOffering {
+  id: string;
+  semesterNumber: number;
+  status: string;
+  program: {
+    id: string;
+    code: string;
+    title: string;
+    department: string | null;
+  };
+  term: {
+    id: string;
+    name: string;
+  };
+  _count?: {
+    enrollments: number;
+  };
 }
 
 export default function StudentsPage() {
@@ -67,8 +88,15 @@ export default function StudentsPage() {
     withDueFees: 0,
   });
 
+  // Classroom view state
+  const [programOfferings, setProgramOfferings] = useState<ProgramOffering[]>(
+    [],
+  );
+  const [selectedClassroom, setSelectedClassroom] =
+    useState<ProgramOffering | null>(null);
+  const [loadingClassrooms, setLoadingClassrooms] = useState(true);
+
   // Filter state
-  // TODO: Pass these filter values to load() once the /api/students endpoint supports them
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [filterSemester, setFilterSemester] = useState("fall-2024");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -90,16 +118,38 @@ export default function StudentsPage() {
     }
   }
 
-  async function load(q = "") {
+  async function loadProgramOfferings() {
+    setLoadingClassrooms(true);
+    try {
+      const res = await fetch("/api/program-offerings?includeCounts=true");
+      const data = await res.json();
+      setProgramOfferings(Array.isArray(data) ? data : []);
+    } catch {
+      setProgramOfferings([]);
+    } finally {
+      setLoadingClassrooms(false);
+    }
+  }
+
+  async function load(q = "", classroomId?: string) {
     setLoading(true);
-    const res = await fetch(`/api/students?q=${encodeURIComponent(q)}`);
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (classroomId) params.set("programOfferingId", classroomId);
+
+    const res = await fetch(`/api/students?${params.toString()}`);
     const data = await res.json();
     setStudents(Array.isArray(data) ? data : []);
     setLoading(false);
   }
 
   async function refreshData(q = "") {
-    await Promise.all([load(q), loadStats()]);
+    const classroomId = selectedClassroom?.id;
+    await Promise.all([
+      load(q, classroomId),
+      loadStats(),
+      loadProgramOfferings(),
+    ]);
   }
 
   async function handleDelete(studentId: string, studentName: string) {
@@ -140,23 +190,30 @@ export default function StudentsPage() {
     }
   }
 
+  function handleSelectClassroom(classroom: ProgramOffering) {
+    setSelectedClassroom(classroom);
+    load("", classroom.id);
+  }
+
+  function handleBackToClassrooms() {
+    setSelectedClassroom(null);
+    setSearch("");
+  }
+
   useEffect(() => {
     async function initialLoad() {
-      const [studentsRes] = await Promise.all([
-        fetch("/api/students?q="),
-        loadStats(),
-      ]);
-      const data = await studentsRes.json();
-      setStudents(Array.isArray(data) ? data : []);
+      await Promise.all([loadProgramOfferings(), loadStats()]);
       setLoading(false);
     }
     initialLoad();
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => load(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
+    if (selectedClassroom) {
+      const t = setTimeout(() => load(search, selectedClassroom.id), 300);
+      return () => clearTimeout(t);
+    }
+  }, [search, selectedClassroom]);
 
   function formatCurrency(amount: number) {
     return new Intl.NumberFormat("en-PK", {
@@ -166,14 +223,147 @@ export default function StudentsPage() {
     }).format(amount);
   }
 
+  // Show classroom selection view
+  if (!selectedClassroom) {
+    return (
+      <div className="space-y-6">
+        {/* 1. Page Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Students</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Select a classroom to view enrolled students
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="gap-1"
+              onClick={() => {
+                setPaymentStudentId(undefined);
+                setPaymentModalOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Add Payment
+            </Button>
+            <Button
+              className="gap-1 bg-blue-600 text-white hover:bg-blue-700"
+              onClick={() => setOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Enroll New Student
+            </Button>
+            <EnrollStudentModal
+              open={open}
+              onOpenChange={setOpen}
+              onSuccess={() => refreshData(search)}
+            />
+            <AddStudentPaymentModal
+              open={paymentModalOpen}
+              onOpenChange={setPaymentModalOpen}
+              onSuccess={() => refreshData(search)}
+              preselectedStudentId={paymentStudentId}
+            />
+          </div>
+        </div>
+
+        {/* 2. KPI Summary Cards */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: "Total No of Students", value: stats.total },
+            { label: "Active Students", value: stats.active },
+            { label: "Students with Due Fees", value: stats.withDueFees },
+          ].map((card, i) => (
+            <Card key={i} className="border bg-white">
+              <CardContent className="p-4">
+                <p className="text-sm text-gray-500">{card.label}</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">
+                  {card.value}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* 3. Classrooms Grid */}
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            Select a Classroom
+          </h2>
+          {loadingClassrooms ? (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              Loading classrooms...
+            </div>
+          ) : programOfferings.length === 0 ? (
+            <Card className="border bg-white">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <BookOpen className="h-12 w-12 text-gray-300" />
+                <p className="mt-4 text-gray-500">No classrooms available</p>
+                <p className="text-sm text-gray-400">
+                  Create a class in the Programs page first
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {programOfferings.map((po) => (
+                <Card
+                  key={po.id}
+                  className="cursor-pointer border bg-white transition-all hover:border-blue-300 hover:shadow-md"
+                  onClick={() => handleSelectClassroom(po)}
+                >
+                  <CardContent className="p-5">
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        {po.status}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-gray-900">
+                      {po.program.code} - Semester {po.semesterNumber}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {po.program.title}
+                    </p>
+                    <p className="text-sm text-gray-400">{po.term.name}</p>
+                    <div className="mt-4 flex items-center gap-1 text-sm text-gray-600">
+                      <Users className="h-4 w-4" />
+                      <span>
+                        {po._count?.enrollments ?? 0} students enrolled
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Show students in selected classroom
   return (
     <div className="space-y-6">
       {/* 1. Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Students</h1>
+          <button
+            onClick={handleBackToClassrooms}
+            className="mb-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to Classrooms
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {selectedClassroom.program.code} - Semester{" "}
+            {selectedClassroom.semesterNumber}
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Monitor your students here
+            {selectedClassroom.program.title} • {selectedClassroom.term.name}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -209,95 +399,18 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 2. KPI Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Total No of Students", value: stats.total },
-          { label: "Active Students", value: stats.active },
-          { label: "Students with Due Fees", value: stats.withDueFees },
-        ].map((card, i) => (
-          <Card key={i} className="border bg-white">
-            <CardContent className="p-4">
-              <p className="text-sm text-gray-500">{card.label}</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {card.value}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* 3. Filters Section */}
-      {/* TODO: Connect filter changes to load() once the API supports department/semester/status/date params */}
-      <div className="flex items-center gap-6 rounded-lg border bg-white px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm text-gray-600">
-            Departments:
-          </span>
-          <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-            <SelectTrigger className="h-8 min-w-35 border-gray-200 text-sm">
-              <SelectValue placeholder="All Departments" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="cs">Computer Science</SelectItem>
-              <SelectItem value="eng">Engineering</SelectItem>
-              <SelectItem value="bus">Business</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm text-gray-600">
-            Semester:
-          </span>
-          <Select value={filterSemester} onValueChange={setFilterSemester}>
-            <SelectTrigger className="h-8 min-w-30 border-gray-200 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fall-2024">Fall 2024</SelectItem>
-              <SelectItem value="spring-2025">Spring 2025</SelectItem>
-              <SelectItem value="fall-2025">Fall 2025</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm text-gray-600">
-            Status:
-          </span>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="h-8 min-w-20 border-gray-200 text-sm">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm text-gray-600">Date:</span>
-          <Input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="h-8 w-35 border-gray-200 text-sm"
-          />
-        </div>
-      </div>
-
-      {/* 4. Data Table Section */}
+      {/* 2. Data Table Section */}
       <div className="rounded-lg border bg-white">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="text-lg font-semibold text-gray-900">
-            Enrolled Students
+            Enrolled Students ({students.length})
           </h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search students..."
               className="h-8 w-56 rounded-full border-gray-200 pl-9"
             />
           </div>
@@ -341,7 +454,7 @@ export default function StudentsPage() {
                   colSpan={6}
                   className="py-8 text-center text-gray-400"
                 >
-                  No students found
+                  No students enrolled in this class
                 </TableCell>
               </TableRow>
             ) : (
@@ -366,8 +479,6 @@ export default function StudentsPage() {
                       <span className="text-gray-400">—</span>
                     )}
                   </TableCell>
-                  {/* TODO: amountPaid and balanceDue come from fee aggregates; extend the
-                      /api/students GET endpoint to include these totals per student */}
                   <TableCell className="font-medium text-green-600">
                     {s.amountPaid != null ? formatCurrency(s.amountPaid) : "—"}
                   </TableCell>
@@ -404,14 +515,6 @@ export default function StudentsPage() {
                         >
                           <Pencil className="h-4 w-4 text-gray-400" />
                           Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            // TODO: Open edit fees/enrollment dialog for this student
-                          }}
-                        >
-                          <Pencil className="h-4 w-4 text-gray-400" />
-                          Edit Fees
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {

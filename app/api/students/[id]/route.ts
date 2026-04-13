@@ -6,6 +6,15 @@ import { getAuthPayload } from "@/lib/auth";
 const updateSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  guardianName: z.string().optional(),
+  guardianPhone: z.string().optional(),
+  guardianRelation: z.string().optional(),
   department: z.string().optional(),
   enrollmentDate: z.string().optional(),
   academicYear: z.string().optional(),
@@ -61,13 +70,16 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const { enrollmentDate, ...rest } = updateSchema.parse(body);
+    const { enrollmentDate, dateOfBirth, email, ...rest } =
+      updateSchema.parse(body);
 
     const student = await prisma.student.update({
       where: { id },
       data: {
         ...rest,
+        email: email || null,
         enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : undefined,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       },
     });
 

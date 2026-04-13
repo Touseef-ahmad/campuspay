@@ -80,6 +80,15 @@ export function EnrollStudentModal({
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    gender: "",
+    address: "",
+    city: "",
+    guardianName: "",
+    guardianPhone: "",
+    guardianRelation: "",
     enrollmentDate: "",
     academicYear: "",
   });
@@ -137,6 +146,15 @@ export function EnrollStudentModal({
     setForm({
       firstName: "",
       lastName: "",
+      email: "",
+      phone: "",
+      dateOfBirth: "",
+      gender: "",
+      address: "",
+      city: "",
+      guardianName: "",
+      guardianPhone: "",
+      guardianRelation: "",
       enrollmentDate: "",
       academicYear: "",
     });
@@ -300,73 +318,218 @@ export function EnrollStudentModal({
 
             {/* Step 1: Student Details */}
             {step === 1 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>
-                      First Name <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={form.firstName}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, firstName: e.target.value }))
-                      }
-                      placeholder="Enter first name"
-                      required
-                    />
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                {/* Basic Information */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">
+                    Basic Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>
+                        First Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        value={form.firstName}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, firstName: e.target.value }))
+                        }
+                        placeholder="Enter first name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>
+                        Last Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        value={form.lastName}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, lastName: e.target.value }))
+                        }
+                        placeholder="Enter last name"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, email: e.target.value }))
+                        }
+                        placeholder="student@email.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input
+                        value={form.phone}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, phone: e.target.value }))
+                        }
+                        placeholder="+92 300 1234567"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Date of Birth</Label>
+                      <Input
+                        type="date"
+                        value={form.dateOfBirth}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            dateOfBirth: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Gender</Label>
+                      <Select
+                        value={form.gender}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, gender: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Input
+                        value={form.city}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, city: e.target.value }))
+                        }
+                        placeholder="City"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>
-                      Last Name <span className="text-red-500">*</span>
-                    </Label>
+                    <Label>Address</Label>
                     <Input
-                      value={form.lastName}
+                      value={form.address}
                       onChange={(e) =>
-                        setForm((p) => ({ ...p, lastName: e.target.value }))
+                        setForm((p) => ({ ...p, address: e.target.value }))
                       }
-                      placeholder="Enter last name"
-                      required
+                      placeholder="Full address"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Enrollment Date</Label>
-                    <Input
-                      type="date"
-                      value={form.enrollmentDate}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          enrollmentDate: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Academic Year</Label>
-                    <Select
-                      value={form.academicYear}
-                      onValueChange={(v) =>
-                        setForm((p) => ({ ...p, academicYear: v }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 10 }, (_, i) => {
-                          const year = new Date().getFullYear() - 2 + i;
-                          return (
-                            <SelectItem key={year} value={year.toString()}>
-                              {year}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+
+                {/* Guardian Information */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">
+                    Guardian Information
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Guardian Name</Label>
+                      <Input
+                        value={form.guardianName}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            guardianName: e.target.value,
+                          }))
+                        }
+                        placeholder="Guardian name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Guardian Phone</Label>
+                      <Input
+                        value={form.guardianPhone}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            guardianPhone: e.target.value,
+                          }))
+                        }
+                        placeholder="+92 300 1234567"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Relation</Label>
+                      <Select
+                        value={form.guardianRelation}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, guardianRelation: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select relation" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="father">Father</SelectItem>
+                          <SelectItem value="mother">Mother</SelectItem>
+                          <SelectItem value="guardian">Guardian</SelectItem>
+                          <SelectItem value="sibling">Sibling</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
+
+                {/* Academic Information */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">
+                    Academic Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Enrollment Date</Label>
+                      <Input
+                        type="date"
+                        value={form.enrollmentDate}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            enrollmentDate: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Academic Year</Label>
+                      <Select
+                        value={form.academicYear}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, academicYear: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 10 }, (_, i) => {
+                            const year = new Date().getFullYear() - 2 + i;
+                            return (
+                              <SelectItem key={year} value={year.toString()}>
+                                {year}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <div className="flex justify-end gap-2 pt-4">
                   <Button

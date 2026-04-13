@@ -12,6 +12,15 @@ const feeSchema = z.object({
 const schema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  guardianName: z.string().optional(),
+  guardianPhone: z.string().optional(),
+  guardianRelation: z.string().optional(),
   department: z.string().optional(),
   enrollmentDate: z.string().optional(),
   academicYear: z.string().optional(),
@@ -27,11 +36,19 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("q") ?? "";
+  const programOfferingId = searchParams.get("programOfferingId");
 
   const students = await prisma.student.findMany({
     where: {
       instituteId: auth.instituteId,
       status: { not: "archived" },
+      ...(programOfferingId
+        ? {
+            enrollments: {
+              some: { programOfferingId },
+            },
+          }
+        : {}),
       OR: search
         ? [
             { firstName: { contains: search, mode: "insensitive" } },
@@ -80,8 +97,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { enrollmentDate, fees, programOfferingId, ...rest } =
-      schema.parse(body);
+    const {
+      enrollmentDate,
+      dateOfBirth,
+      fees,
+      programOfferingId,
+      email,
+      ...rest
+    } = schema.parse(body);
 
     // Verify program offering exists and belongs to institute
     const programOffering = await prisma.programOffering.findFirst({
@@ -133,11 +156,13 @@ export async function POST(req: NextRequest) {
           const student = await tx.student.create({
             data: {
               ...rest,
+              email: email || undefined,
               studentId,
               department: programOffering.program.department || rest.department,
               enrollmentDate: enrollmentDate
                 ? new Date(enrollmentDate)
                 : undefined,
+              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
               instituteId,
             },
           });

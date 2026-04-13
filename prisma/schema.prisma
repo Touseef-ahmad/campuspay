@@ -124,14 +124,23 @@ model ProgramOffering {
 }
 
 model Student {
-  id             String    @id @default(cuid())
-  studentId      String?   @unique
-  firstName      String
-  lastName       String
-  department     String?
-  enrollmentDate DateTime?
-  academicYear   String?
-  status         String    @default("active")
+  id               String    @id @default(cuid())
+  studentId        String?   @unique
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String?
+  dateOfBirth      DateTime?
+  gender           String?
+  address          String?
+  city             String?
+  guardianName     String?
+  guardianPhone    String?
+  guardianRelation String?
+  department       String?
+  enrollmentDate   DateTime?
+  academicYear     String?
+  status           String    @default("active")
 
   instituteId String
   institute   Institute @relation(fields: [instituteId], references: [id])
@@ -212,10 +221,11 @@ model FinancialAccount {
 }
 
 model PaymentTransaction {
-  id         String   @id @default(cuid())
-  amountPaid Decimal  @db.Decimal(12, 2)
-  date       DateTime @default(now())
-  method     String
+  id            String   @id @default(cuid())
+  receiptNumber String   @unique
+  amountPaid    Decimal  @db.Decimal(12, 2)
+  date          DateTime @default(now())
+  method        String
 
   studentFeeId String
   studentFee   StudentFee @relation(fields: [studentFeeId], references: [id])
