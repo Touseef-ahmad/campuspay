@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
   const endOfLastMonth = new Date(startOfMonth.getTime() - 1);
 
   const [
+    institute,
     pendingFees,
     accounts,
     totalPayments,
@@ -41,6 +42,13 @@ export async function GET(req: NextRequest) {
     lastMonthPayments,
     totalExpenses,
   ] = await Promise.all([
+    // Institute name
+    auth.instituteId
+      ? prisma.institute.findUnique({
+          where: { id: auth.instituteId },
+          select: { name: true },
+        })
+      : Promise.resolve(null),
     // Total pending fees (with due and paid amounts)
     prisma.studentFee.aggregate({
       where: {
@@ -107,6 +115,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     // KPI data
+    instituteName: institute?.name ?? null,
     monthlyRevenue,
     revenueChange: Number(revenueChange),
     pendingDues: actualPendingDues,

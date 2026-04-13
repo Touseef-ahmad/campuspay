@@ -19,6 +19,7 @@ import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
 // Types
 // ---------------------------------------------------------------------------
 interface DashboardStats {
+  instituteName: string;
   monthlyRevenue: number;
   revenueChange: number;
   pendingDues: number;
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   });
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
+    instituteName: "",
     monthlyRevenue: 0,
     revenueChange: 0,
     pendingDues: 0,
@@ -85,6 +87,7 @@ export default function DashboardPage() {
         if (dashboardRes.ok) {
           const data = await dashboardRes.json();
           setStats({
+            instituteName: data.instituteName ?? "",
             monthlyRevenue: data.monthlyRevenue ?? 0,
             revenueChange: data.revenueChange ?? 0,
             pendingDues: data.pendingDues ?? 0,
@@ -107,6 +110,8 @@ export default function DashboardPage() {
   }, [dateFrom, dateTo]);
 
   // Export / print report
+  const instituteName = stats.instituteName;
+
   function handleExport() {
     // Collect unique income columns (fee collection + deposit categories)
     const hasFeeIncome = transactions.some((t) => t.type === "credit");
@@ -242,26 +247,29 @@ export default function DashboardPage() {
   <title>Financial Ledger</title>
   <style>
     @media print { @page { size: A3 landscape; margin: 10mm; } }
-    body { font-family: Arial, sans-serif; font-size: 8.5px; color: #000; }
-    h1 { text-align: center; font-size: 14px; margin: 0 0 3px; text-transform: uppercase; letter-spacing: 1px; }
-    h2 { text-align: center; font-size: 10px; font-weight: normal; margin: 0 0 10px; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 8.5px; color: #000; margin: 0; padding: 12px; }
+    .doc-title { text-align: center; font-size: 15px; font-weight: bold; margin: 0 0 3px; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-subtitle { text-align: center; font-size: 11px; font-weight: bold; margin: 0 0 2px; text-transform: uppercase; }
+    .doc-period { text-align: center; font-size: 9px; font-weight: normal; color: #444; margin: 0 0 10px; }
     table { border-collapse: collapse; width: 100%; table-layout: auto; }
-    th, td { border: 1px solid #000; padding: 3px 5px; text-align: right; white-space: nowrap; }
+    th, td { border: 1px solid #000; padding: 2px 4px; text-align: right; white-space: nowrap; }
+    tbody tr td { padding: 2px 4px; line-height: 1.3; }
     .date-cell { text-align: left; font-weight: bold; min-width: 80px; }
-    .cat-header { padding: 4px 3px; }
-    .rotated { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; height: 90px; white-space: nowrap; font-size: 7.5px; }
+    .cat-header { padding: 3px 2px; vertical-align: bottom; }
+    .rotated { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; height: auto; white-space: nowrap; font-size: 7.5px; }
     .group-header { font-weight: bold; font-size: 10px; text-align: center; }
     .income-cat { background-color: #e8f5e9; }
     .expense-cat { background-color: #fce4ec; }
     .subtotal { font-weight: bold; background-color: #f5f5f5; }
     .total-row td { font-weight: bold; background-color: #eeeeee; }
     .label-col { text-align: left; font-weight: bold; }
-    tr:hover { background-color: #fafafa; }
   </style>
 </head>
 <body>
-  <h1>Daily Income &amp; Expense Ledger</h1>
-  <h2>Period: ${fromLabel} &mdash; ${toLabel}</h2>
+  <div class="doc-title">${instituteName || "Financial Institution"}</div>
+  <div class="doc-subtitle">Daily Income &amp; Expense Ledger</div>
+  <div class="doc-period">Period: ${fromLabel} &mdash; ${toLabel}</div>
   <table>
     <thead>
       <tr>
@@ -440,6 +448,7 @@ export default function DashboardPage() {
               .then((res) => res.json())
               .then((data) => {
                 setStats({
+                  instituteName: data.instituteName ?? "",
                   monthlyRevenue: data.monthlyRevenue ?? 0,
                   revenueChange: data.revenueChange ?? 0,
                   pendingDues: data.pendingDues ?? 0,
