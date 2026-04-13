@@ -49,12 +49,14 @@ export async function GET(req: NextRequest) {
             },
           }
         : {}),
-      OR: search
-        ? [
-            { firstName: { contains: search, mode: "insensitive" } },
-            { lastName: { contains: search, mode: "insensitive" } },
-          ]
-        : undefined,
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: "insensitive" } },
+              { lastName: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     },
     orderBy: { firstName: "asc" },
     include: {

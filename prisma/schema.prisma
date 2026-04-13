@@ -222,7 +222,7 @@ model FinancialAccount {
 
 model PaymentTransaction {
   id            String   @id @default(cuid())
-  receiptNumber String   @unique
+  receiptNumber String?  @unique
   amountPaid    Decimal  @db.Decimal(12, 2)
   date          DateTime @default(now())
   method        String
