@@ -32,6 +32,7 @@ import {
   Users,
   ChevronLeft,
   BookOpen,
+  Printer,
 } from "lucide-react";
 import { EnrollStudentModal } from "@/components/enroll-student-modal";
 import { AddStudentPaymentModal } from "@/components/add-student-payment-modal";
@@ -211,6 +212,113 @@ export default function StudentsPage() {
       currency: "PKR",
       minimumFractionDigits: 0,
     }).format(amount);
+  }
+
+  function handlePrint() {
+    if (!selectedClassroom) return;
+    const cl = selectedClassroom;
+    const title = `${cl.program.code} — Semester ${cl.semesterNumber}`;
+    const subtitle = `${cl.program.title}  •  ${cl.term.name}`;
+    const printDate = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    const fmt = (n?: number) =>
+      n != null
+        ? new Intl.NumberFormat("en-PK", {
+            style: "currency",
+            currency: "PKR",
+            minimumFractionDigits: 0,
+          }).format(n)
+        : "—";
+
+    const totalPaid = students.reduce((s, r) => s + (r.amountPaid ?? 0), 0);
+    const totalDue = students.reduce((s, r) => s + (r.balanceDue ?? 0), 0);
+
+    const rows = students
+      .map(
+        (s, i) => `<tr>
+          <td>${i + 1}</td>
+          <td>${s.studentId ?? "—"}</td>
+          <td>${s.firstName} ${s.lastName}</td>
+          <td>${s.department ?? "—"}</td>
+          <td class="amount paid">${fmt(s.amountPaid)}</td>
+          <td class="amount due">${fmt(s.balanceDue)}</td>
+        </tr>`,
+      )
+      .join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @media print { @page { size: A4 portrait; margin: 12mm; } }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 9px; color: #000; margin: 0; padding: 14px; }
+    .hdr { text-align: center; margin-bottom: 10px; }
+    .hdr h1 { font-size: 14px; font-weight: bold; margin: 0 0 3px; text-transform: uppercase; letter-spacing: 1px; }
+    .hdr h2 { font-size: 11px; font-weight: bold; margin: 0 0 2px; }
+    .hdr p  { font-size: 8.5px; color: #555; margin: 0; }
+    .meta  { display: flex; justify-content: space-between; font-size: 8px; color: #555; margin-bottom: 8px; }
+    table  { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #000; padding: 3px 5px; }
+    th     { background: #f0f0f0; font-weight: bold; text-align: center; font-size: 8px; text-transform: uppercase; }
+    td     { font-size: 8.5px; }
+    td:first-child { text-align: center; }
+    .amount { text-align: right; }
+    .paid   { color: #166534; }
+    .due    { color: #991b1b; }
+    .total-row td { font-weight: bold; background: #eeeeee; }
+  </style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>${title}</h1>
+    <h2>${subtitle}</h2>
+    <p>Student Fee Report</p>
+  </div>
+  <div class="meta">
+    <span>Total Students: <strong>${students.length}</strong></span>
+    <span>Printed: ${printDate}</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Student ID</th>
+        <th>Name</th>
+        <th>Department</th>
+        <th>Amount Paid</th>
+        <th>Balance Due</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="6" style="text-align:center">No students</td></tr>'}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="4" style="text-align:right">TOTAL</td>
+        <td class="amount paid">${fmt(totalPaid)}</td>
+        <td class="amount due">${fmt(totalDue)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=800,height=900");
+    if (!win) {
+      alert("Please allow pop-ups to print.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
   }
 
   // Show classroom selection view
@@ -395,14 +503,25 @@ export default function StudentsPage() {
           <h2 className="text-lg font-semibold text-gray-900">
             Enrolled Students ({students.length})
           </h2>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search students..."
-              className="h-8 w-56 rounded-full border-gray-200 pl-9"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search students..."
+                className="h-8 w-56 rounded-full border-gray-200 pl-9"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={handlePrint}
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
           </div>
         </div>
         <Table>
